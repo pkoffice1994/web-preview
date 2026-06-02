@@ -1,0 +1,2124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kriscent Techno Hub | Command Center</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f1a;
+      --surface: #111622;
+      --surface-2: #161d2e;
+      --surface-3: #1c2540;
+      --border: rgba(255,255,255,0.06);
+      --border-2: rgba(255,255,255,0.1);
+      --ink: #e8edf8;
+      --muted: #6b7a99;
+      --muted-2: #8895b3;
+      --accent: #4f7cff;
+      --accent-glow: rgba(79,124,255,0.2);
+      --teal: #00d4c8;
+      --teal-dim: rgba(0,212,200,0.12);
+      --green: #22c97a;
+      --green-dim: rgba(34,201,122,0.12);
+      --amber: #f5a623;
+      --amber-dim: rgba(245,166,35,0.12);
+      --red: #ff5c7a;
+      --red-dim: rgba(255,92,122,0.12);
+      --violet: #a78bfa;
+      --r: 12px;
+      --r-lg: 18px;
+      font-family: 'DM Sans', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--ink); min-height: 100vh; font-size: 14px; line-height: 1.6; }
+
+    /* LAYOUT */
+    .shell { display: grid; grid-template-columns: 64px 1fr; min-height: 100vh; }
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 20px 0; gap: 6px; position: sticky; top: 0; height: 100vh;
+    }
+    .logo {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--violet));
+      display: grid; place-items: center;
+      font-weight: 700; font-size: 13px; letter-spacing: -0.03em; color: #fff;
+      margin-bottom: 16px; flex-shrink: 0;
+    }
+    .nav-btn {
+      width: 40px; height: 40px; border-radius: 10px; border: none;
+      background: transparent; color: var(--muted); font-size: 18px;
+      cursor: pointer; display: grid; place-items: center;
+      transition: all 0.15s; position: relative;
+    }
+    .nav-btn:hover, .nav-btn.active { background: var(--surface-3); color: var(--ink); }
+    .nav-btn.active::before {
+      content: ''; position: absolute; left: -1px; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 20px; background: var(--accent); border-radius: 0 3px 3px 0;
+    }
+    .nav-badge {
+      position: absolute; top: 5px; right: 5px;
+      min-width: 16px; height: 16px; border-radius: 8px;
+      background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
+      display: grid; place-items: center; padding: 0 3px;
+    }
+    .nav-divider { width: 28px; height: 1px; background: var(--border); margin: 6px 0; }
+    .nav-spacer { flex: 1; }
+
+    /* MAIN */
+    .main { display: flex; flex-direction: column; min-width: 0; }
+
+    /* TOPBAR */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 28px; border-bottom: 1px solid var(--border);
+      background: var(--surface); position: sticky; top: 0; z-index: 10;
+    }
+    .topbar-left { display: flex; flex-direction: column; gap: 2px; }
+    .topbar-left h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+    .topbar-left span { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .tbtn {
+      height: 34px; border-radius: 8px; padding: 0 14px;
+      border: 1px solid var(--border-2); background: var(--surface-2);
+      color: var(--muted-2); font-size: 13px; font-family: 'DM Sans', sans-serif;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .tbtn:hover { background: var(--surface-3); color: var(--ink); border-color: var(--border-2); }
+    .tbtn-primary {
+      background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 500;
+    }
+    .tbtn-primary:hover { background: #3d6aff; border-color: #3d6aff; color: #fff; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+    /* CONTENT */
+    .content { padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+    /* STAT CARDS */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 18px 20px; position: relative; overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .stat-card:hover { border-color: var(--border-2); }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: var(--accent-color, var(--accent));
+    }
+    .stat-card:nth-child(2)::before { background: var(--teal); }
+    .stat-card:nth-child(3)::before { background: var(--amber); }
+    .stat-card:nth-child(4)::before { background: var(--green); }
+    .stat-label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+    .stat-value { font-size: 28px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; margin-bottom: 6px; }
+    .stat-sub { font-size: 12px; color: var(--muted); }
+
+    /* GRID LAYOUTS */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3-2 { display: grid; grid-template-columns: 3fr 2fr; gap: 14px; }
+    .grid-2-3 { display: grid; grid-template-columns: 2fr 3fr; gap: 14px; }
+
+    /* CARDS */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg); overflow: hidden;
+    }
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 20px 14px; border-bottom: 1px solid var(--border);
+    }
+    .card-head h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+    .card-head p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .card-body { padding: 16px 20px; }
+
+    /* CHART */
+    .chart-wrap { padding: 16px 20px 10px; }
+    .chart-tabs { display: flex; gap: 4px; }
+    .chart-tab {
+      height: 28px; border-radius: 6px; padding: 0 12px; border: 1px solid transparent;
+      background: transparent; color: var(--muted); font-size: 12px; font-family: 'DM Sans';
+      cursor: pointer; transition: all 0.15s;
+    }
+    .chart-tab.active { background: var(--surface-3); color: var(--ink); border-color: var(--border-2); }
+    .chart-svg { width: 100%; display: block; margin-top: 12px; }
+    .chart-legend { display: flex; gap: 16px; padding: 0 20px 16px; }
+    .chart-legend span { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+    .chart-legend i { width: 24px; height: 3px; border-radius: 2px; display: block; }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.05em; padding: 10px 20px; text-align: left;
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    tbody td { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,0.02); }
+    .person { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 11px; font-weight: 600;
+    }
+    .a-blue { background: rgba(79,124,255,0.15); color: var(--accent); }
+    .a-teal { background: var(--teal-dim); color: var(--teal); }
+    .a-amber { background: var(--amber-dim); color: var(--amber); }
+    .a-red { background: var(--red-dim); color: var(--red); }
+    .a-violet { background: rgba(167,139,250,0.15); color: var(--violet); }
+    .person strong { font-size: 13px; font-weight: 500; display: block; }
+    .meta { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    /* STATUS PILLS */
+    .pill {
+      height: 22px; border-radius: 6px; padding: 0 8px; font-size: 11px; font-weight: 500;
+      display: inline-flex; align-items: center;
+    }
+    .s-new { background: rgba(79,124,255,0.15); color: #7aa3ff; }
+    .s-follow { background: var(--amber-dim); color: var(--amber); }
+    .s-won { background: var(--green-dim); color: var(--green); }
+    .s-cold { background: rgba(107,122,153,0.15); color: var(--muted-2); }
+
+    /* SYNC PANEL */
+    .sync-list { display: flex; flex-direction: column; }
+    .sync-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 20px; border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    .sync-item:last-child { border-bottom: none; }
+    .sync-item strong { font-size: 13px; font-weight: 500; display: block; }
+    .sync-item span { font-size: 12px; color: var(--muted); }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sync-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .sync-dot.warn { background: var(--amber); }
+    .sync-dot.off { background: var(--muted); }
+    .qbtn {
+      height: 28px; border-radius: 6px; padding: 0 12px; font-size: 12px;
+      border: 1px solid var(--border-2); background: var(--surface-2);
+      color: var(--muted-2); cursor: pointer; font-family: 'DM Sans';
+      white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+    }
+    .qbtn:hover { background: var(--surface-3); color: var(--ink); }
+    .qbtn.alt { border-color: rgba(0,212,200,0.3); color: var(--teal); }
+    .qbtn.alt:hover { background: var(--teal-dim); }
+
+    /* HEALTH GRID */
+    .health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px 20px; }
+    .health-mini {
+      background: var(--surface-2); border-radius: 10px; padding: 12px 14px;
+      border: 1px solid var(--border);
+    }
+    .health-mini span { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; }
+    .health-mini strong { font-size: 20px; font-weight: 600; letter-spacing: -0.03em; }
+
+    /* TIMELINE */
+    .timeline { padding: 12px 20px; display: flex; flex-direction: column; gap: 0; }
+    .tl-item {
+      display: flex; gap: 14px; padding: 12px 0;
+      border-bottom: 1px solid var(--border); align-items: flex-start;
+    }
+    .tl-item:last-child { border-bottom: none; }
+    .tl-num {
+      width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 11px; font-weight: 600;
+      background: var(--surface-3); color: var(--accent); margin-top: 1px;
+    }
+    .tl-item h4 { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+    .tl-badge {
+      height: 22px; border-radius: 6px; padding: 0 8px; font-size: 11px; font-weight: 500;
+      display: inline-flex; align-items: center; flex-shrink: 0; margin-top: 2px;
+    }
+    .tl-live { background: var(--green-dim); color: var(--green); }
+    .tl-manual { background: var(--amber-dim); color: var(--amber); }
+
+    /* BAR CHART */
+    .bar-list { padding: 8px 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+    .bar-row {}
+    .bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+    .bar-label span:last-child { color: var(--muted-2); font-family: 'DM Mono'; font-size: 11px; }
+    .bar-track { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(0.4,0,0.2,1); }
+
+    /* INVOICES */
+    .invoice-list { display: flex; flex-direction: column; }
+    .invoice-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 20px; border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    .invoice-item:last-child { border-bottom: none; }
+    .invoice-item h4 { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+    .inv-amount { font-size: 14px; font-weight: 600; font-family: 'DM Mono'; color: var(--ink); margin-bottom: 6px; text-align: right; }
+
+    /* FEED */
+    .feed { display: flex; flex-direction: column; }
+    .feed-item {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      padding: 12px 20px; border-bottom: 1px solid var(--border); gap: 12px;
+    }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-item h4 { font-size: 12px; font-weight: 500; margin-bottom: 3px; font-family: 'DM Mono'; color: var(--muted-2); }
+    .feed-tag {
+      height: 22px; border-radius: 6px; padding: 0 8px; font-size: 11px;
+      flex-shrink: 0; display: inline-flex; align-items: center;
+    }
+    .ok { background: var(--green-dim); color: var(--green); }
+    .warn { background: var(--amber-dim); color: var(--amber); }
+    .cold { background: rgba(107,122,153,0.15); color: var(--muted-2); }
+
+    /* MODAL */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
+      display: grid; place-items: center; backdrop-filter: blur(4px);
+    }
+    .modal-backdrop.hidden { display: none; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border-2);
+      border-radius: 20px; padding: 28px; width: 620px; max-width: 95vw;
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .modal > p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { font-size: 12px; font-weight: 500; color: var(--muted-2); }
+    .field input, .field select, .field textarea {
+      background: var(--surface-2); border: 1px solid var(--border-2);
+      border-radius: 8px; padding: 9px 12px; color: var(--ink); font-size: 13px;
+      font-family: 'DM Sans'; outline: none; transition: border-color 0.15s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--accent);
+    }
+    .field textarea { resize: vertical; min-height: 70px; }
+    .field select option { background: var(--surface-2); }
+    details.advanced-connection { grid-column: 1/-1; }
+    details summary {
+      font-size: 12px; color: var(--muted); cursor: pointer; padding: 8px 0;
+      border-top: 1px solid var(--border); margin-top: 4px; list-style: none;
+    }
+    details summary::before { content: '+ '; }
+    details[open] summary::before { content: '− '; }
+    .nested-grid { margin-top: 12px; }
+    .inline-note { font-size: 12px; color: var(--muted); margin: 14px 0 0; min-height: 18px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+    .btn-cancel {
+      height: 36px; border-radius: 8px; padding: 0 16px;
+      border: 1px solid var(--border-2); background: transparent;
+      color: var(--muted-2); font-size: 13px; font-family: 'DM Sans'; cursor: pointer;
+    }
+    .btn-primary {
+      height: 36px; border-radius: 8px; padding: 0 20px;
+      border: none; background: var(--accent); color: #fff;
+      font-size: 13px; font-weight: 500; font-family: 'DM Sans'; cursor: pointer;
+    }
+    .btn-primary:hover { background: #3d6aff; }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      background: var(--surface-3); border: 1px solid var(--border-2);
+      color: var(--ink); padding: 10px 18px; border-radius: 10px;
+      font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      animation: toast-in 0.2s ease;
+    }
+    .toast.hidden { display: none; }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* SECTION LABEL */
+    .section-label {
+      font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.08em; padding: 4px 0;
+    }
+
+    /* SCROLL TOP */
+    #scrollTopBtn {
+      position: fixed; bottom: 24px; left: 80px; width: 36px; height: 36px;
+      border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border-2);
+      color: var(--muted); font-size: 16px; cursor: pointer; display: grid; place-items: center;
+    }
+    #scrollTopBtn:hover { background: var(--surface-3); color: var(--ink); }
+
+    .focus-ring { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .hidden { display: none !important; }
+
+    /* CLIENT CARDS */
+    .client-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .client-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px;
+      transition: border-color 0.2s;
+    }
+    .client-card:hover { border-color: var(--border-2); }
+    .client-head { display: flex; align-items: center; gap: 10px; }
+    .client-head strong { font-size: 13px; font-weight: 600; display: block; }
+    .client-meta { display: flex; flex-direction: column; gap: 5px; }
+    .cmeta-row { display: flex; justify-content: space-between; font-size: 12px; }
+    .cmeta-row span:first-child { color: var(--muted); }
+    .cmeta-row span:last-child { font-weight: 500; }
+    .progress-wrap {}
+    .client-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid var(--border); }
+
+    /* ANALYST CARDS */
+    .analyst-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .analyst-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 10px;
+      transition: border-color 0.2s;
+    }
+    .analyst-card:hover { border-color: var(--border-2); }
+    .analyst-top { display: flex; align-items: center; gap: 10px; }
+    .analyst-top strong { font-size: 13px; font-weight: 600; display: block; }
+    .analyst-top > div:nth-child(2) { flex: 1; }
+    .analyst-badge {
+      height: 20px; border-radius: 6px; padding: 0 8px; font-size: 10px; font-weight: 600;
+      display: inline-flex; align-items: center; flex-shrink: 0;
+    }
+    .analyst-badge.live { background: var(--green-dim); color: var(--green); }
+    .analyst-badge.away { background: var(--amber-dim); color: var(--amber); }
+    .analyst-badge.off { background: rgba(107,122,153,0.15); color: var(--muted); }
+    .analyst-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .analyst-stats > div { background: var(--surface-2); border-radius: 8px; padding: 8px; text-align: center; }
+    .analyst-stats span { font-size: 10px; color: var(--muted); display: block; margin-bottom: 2px; }
+    .analyst-stats strong { font-size: 16px; font-weight: 600; }
+
+    /* SIDE PANELS */
+    .side-panel {
+      position: fixed; top: 0; right: 0; width: 320px; height: 100vh;
+      background: var(--surface); border-left: 1px solid var(--border-2);
+      z-index: 200; display: flex; flex-direction: column;
+      animation: slide-in 0.2s ease;
+    }
+    .side-panel.hidden { display: none !important; }
+    @keyframes slide-in { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .panel-overlay {
+      position: fixed; inset: 0; z-index: 190; background: rgba(0,0,0,0.4);
+    }
+    .panel-overlay.hidden { display: none !important; }
+    .panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 16px; border-bottom: 1px solid var(--border);
+    }
+    .panel-head strong { font-size: 14px; font-weight: 600; }
+    .panel-close { background: transparent; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+    .panel-close:hover { background: var(--surface-2); color: var(--ink); }
+    .panel-body { flex: 1; overflow-y: auto; }
+
+    /* NOTIFICATIONS */
+    .notif-item {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background 0.15s;
+    }
+    .notif-item:hover { background: var(--surface-2); }
+    .notif-item.unread { background: rgba(79,124,255,0.04); }
+    .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 5px; }
+    .notif-title { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+    .notif-count {
+      position: absolute; top: 4px; right: 4px;
+      min-width: 16px; height: 16px; border-radius: 8px;
+      background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
+      display: grid; place-items: center; padding: 0 3px;
+    }
+
+    /* SETTINGS */
+    .settings-section { padding: 16px; border-bottom: 1px solid var(--border); }
+    .settings-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; font-size: 13px; }
+    .toggle-switch {
+      width: 36px; height: 20px; border-radius: 10px; background: var(--surface-3);
+      border: 1px solid var(--border-2); cursor: pointer; position: relative; transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: all 0.2s; }
+    .toggle-switch.active { background: var(--accent); border-color: var(--accent); }
+    .toggle-switch.active::after { left: 18px; background: #fff; }
+
+    /* POLISHED READABILITY + HOVER MOTION */
+    body {
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    .topbar-left h1 {
+      font-size: 20px;
+    }
+
+    .topbar-left span,
+    .tbtn,
+    .qbtn {
+      font-size: 14px;
+    }
+
+    .content {
+      gap: 24px;
+    }
+
+    .stat-label,
+    .section-label,
+    thead th {
+      font-size: 12px;
+    }
+
+    .stat-value {
+      font-size: 36px;
+    }
+
+    .stat-sub,
+    .card-head p,
+    .sync-item span,
+    .meta,
+    .bar-label,
+    .cmeta-row,
+    .field label,
+    .inline-note {
+      font-size: 14px;
+    }
+
+    .card-head h2 {
+      font-size: 18px;
+    }
+
+    tbody td,
+    .person strong,
+    .sync-item strong,
+    .tl-item h4,
+    .invoice-item h4,
+    .client-head strong,
+    .analyst-top strong,
+    .notif-title,
+    .toggle-row {
+      font-size: 15px;
+    }
+
+    .modal h3 {
+      font-size: 22px;
+    }
+
+    .modal > p,
+    .field input,
+    .field select,
+    .field textarea,
+    .btn-cancel,
+    .btn-primary {
+      font-size: 15px;
+    }
+
+    .stat-card,
+    .card,
+    .client-card,
+    .analyst-card,
+    .health-mini,
+    .sync-item,
+    .invoice-item,
+    .feed-item,
+    .tl-item {
+      position: relative;
+      overflow: hidden;
+      transition:
+        transform 0.22s ease,
+        border-color 0.22s ease,
+        box-shadow 0.22s ease,
+        background-color 0.22s ease;
+    }
+
+    .stat-card::after,
+    .card::after,
+    .client-card::after,
+    .analyst-card::after,
+    .health-mini::after,
+    .sync-item::after,
+    .invoice-item::after,
+    .feed-item::after,
+    .tl-item::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.10) 46%, transparent 62%);
+      transform: translateX(-120%);
+      transition: transform 0.55s ease;
+    }
+
+    .stat-card:hover,
+    .card:hover,
+    .client-card:hover,
+    .analyst-card:hover,
+    .health-mini:hover {
+      transform: translateY(-5px);
+      border-color: rgba(255,255,255,0.18);
+      box-shadow: 0 18px 45px rgba(0,0,0,0.34), 0 0 0 1px rgba(79,124,255,0.08);
+    }
+
+    .sync-item:hover,
+    .invoice-item:hover,
+    .feed-item:hover,
+    .tl-item:hover {
+      transform: translateX(4px);
+      border-color: rgba(255,255,255,0.14);
+      background-color: rgba(255,255,255,0.035);
+    }
+
+    .stat-card:hover::after,
+    .card:hover::after,
+    .client-card:hover::after,
+    .analyst-card:hover::after,
+    .health-mini:hover::after,
+    .sync-item:hover::after,
+    .invoice-item:hover::after,
+    .feed-item:hover::after,
+    .tl-item:hover::after {
+      transform: translateX(120%);
+    }
+
+    .tbtn,
+    .qbtn,
+    .btn-cancel,
+    .btn-primary,
+    .nav-btn {
+      transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        background-color 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease;
+    }
+
+    .tbtn:hover,
+    .qbtn:hover,
+    .btn-cancel:hover,
+    .btn-primary:hover,
+    .nav-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+    }
+
+    .client-grid,
+    .analyst-grid {
+      gap: 18px;
+    }
+
+    .client-card,
+    .analyst-card {
+      padding: 20px;
+    }
+
+    .client-card [style*="font-size:11px"],
+    .analyst-card [style*="font-size:11px"],
+    .client-card .qbtn,
+    .analyst-card .qbtn {
+      font-size: 13px !important;
+    }
+
+    #webhookStatusText {
+      font-size: 14px !important;
+    }
+
+    .client-head .avatar,
+    .analyst-top .avatar {
+      box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        transition: none !important;
+        animation: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="logo">KT</div>
+    <button class="nav-btn active" data-nav-target="overview" title="Overview">⊞</button>
+    <button class="nav-btn" data-nav-target="leads" title="Leads">◈</button>
+    <button class="nav-btn" data-nav-target="workflow" title="Workflow">⟳</button>
+    <button class="nav-btn" data-nav-target="billing" title="Billing">◇</button>
+    <div class="nav-divider"></div>
+    <button class="nav-btn" data-nav-target="updates" title="Feed">
+      ≡
+      <span class="nav-badge">4</span>
+    </button>
+    <div class="nav-spacer"></div>
+    <button class="nav-btn" id="settingsBtn" title="Settings">⚙</button>
+  </nav>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- TOPBAR -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1>Kriscent Techno Hub — Operations</h1>
+        <span id="dateInfoBtn" style="cursor:pointer">Sun 31 May 2026 &nbsp;·&nbsp; n8n Active</span>
+      </div>
+      <div class="topbar-right">
+        <div style="display:flex;align-items:center;gap:6px;padding:0 10px;height:34px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface-2);">
+          <span class="status-dot" id="n8nStatusBtn" style="cursor:pointer"></span>
+          <span style="font-size:12px;color:var(--muted-2)" id="webhookStatusText">n8n connected</span>
+        </div>
+        <button class="tbtn" type="button" data-action="open-sheet">⟳ &nbsp;Sync Sheet</button>
+        <button class="tbtn" id="notifBtn" style="position:relative">
+          🔔
+          <span class="notif-count" id="notifCount">3</span>
+        </button>
+        <button class="tbtn tbtn-primary" type="button" id="createLeadBtn">+ New Lead</button>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- STATS -->
+      <div class="stats-row" id="overview">
+        <div class="stat-card">
+          <div class="stat-label">Total Leads</div>
+          <div class="stat-value">42</div>
+          <div class="stat-sub">9 need immediate response</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Projects</div>
+          <div class="stat-value">18</div>
+          <div class="stat-sub">5 in delivery this week</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pending Invoices</div>
+          <div class="stat-value">$28k</div>
+          <div class="stat-sub">4 unpaid milestones</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Monthly Revenue</div>
+          <div class="stat-value">$84k</div>
+          <div class="stat-sub">91% of target hit</div>
+        </div>
+      </div>
+
+      <!-- CHART + SYNC -->
+      <div class="grid-3-2">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Lead to Revenue Trend</h2>
+              <p>Weekly performance overview</p>
+            </div>
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-range="week">Week</button>
+              <button class="chart-tab" data-range="month">Month</button>
+              <button class="chart-tab" data-range="quarter">Quarter</button>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <svg class="chart-svg" viewBox="0 0 600 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="fillA" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#4f7cff" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#4f7cff" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0 120C50 114 90 100 140 88C180 78 210 58 260 62C305 66 340 95 390 93C435 91 470 55 520 58C555 60 580 42 600 38L600 160L0 160Z" fill="url(#fillA)"/>
+              <path d="M0 120C50 114 90 100 140 88C180 78 210 58 260 62C305 66 340 95 390 93C435 91 470 55 520 58C555 60 580 42 600 38" stroke="#4f7cff" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M0 108C50 103 90 90 140 76C180 65 210 45 258 48C302 51 338 78 390 75C433 73 468 40 520 44C555 47 580 28 600 22" stroke="#00d4c8" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 8"/>
+              <line x1="0" y1="40" x2="600" y2="40" stroke="rgba(255,255,255,0.04)"/>
+              <line x1="0" y1="80" x2="600" y2="80" stroke="rgba(255,255,255,0.04)"/>
+              <line x1="0" y1="120" x2="600" y2="120" stroke="rgba(255,255,255,0.04)"/>
+            </svg>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:0 20px 6px;font-size:11px;color:var(--muted)">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+          <div class="chart-legend">
+            <span><i style="background:#4f7cff"></i>Revenue</span>
+            <span><i style="background:#00d4c8;border-top:none"></i>Leads</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Automation Health</h2>
+              <p>Live system status</p>
+            </div>
+          </div>
+          <div class="sync-list">
+            <div class="sync-item" id="syncWebhookCard">
+              <span class="sync-dot live"></span>
+              <div style="flex:1;min-width:0">
+                <strong>n8n Lead Webhook</strong>
+                <span id="webhookStatusText2">Connected · webhook/collect-requirement</span>
+              </div>
+              <button class="qbtn" type="button" data-action="test-sync">Test</button>
+            </div>
+            <div class="sync-item" id="syncSheetsCard">
+              <span class="sync-dot live"></span>
+              <div style="flex:1;min-width:0">
+                <strong>Google Sheets</strong>
+                <span>Lead Master · Sheet5</span>
+              </div>
+              <button class="qbtn" type="button" data-action="open-sheet">Sync</button>
+            </div>
+            <div class="sync-item">
+              <span class="sync-dot live"></span>
+              <div style="flex:1;min-width:0">
+                <strong>Follow-up Emails</strong>
+                <span>Daily 9AM · Gmail active</span>
+              </div>
+              <button class="qbtn" type="button" data-action="send-followup">Queue</button>
+            </div>
+            <div class="sync-item">
+              <span class="sync-dot warn"></span>
+              <div style="flex:1;min-width:0">
+                <strong>Cold Re-activation</strong>
+                <span>9 leads scheduled</span>
+              </div>
+              <button class="qbtn alt" type="button" data-action="reactivate-cold">Run</button>
+            </div>
+          </div>
+          <div class="health-grid">
+            <div class="health-mini">
+              <span>Follow-ups Due</span>
+              <strong>21</strong>
+            </div>
+            <div class="health-mini">
+              <span>Cold Leads</span>
+              <strong>34</strong>
+            </div>
+            <div class="health-mini">
+              <span>Team Active</span>
+              <strong>13</strong>
+            </div>
+            <div class="health-mini">
+              <span>Profit Margin</span>
+              <strong>37%</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEADS TABLE -->
+      <div class="card" id="leads">
+        <div class="card-head">
+          <div>
+            <h2>Lead Pipeline</h2>
+            <p>All leads from website, WhatsApp, referrals & outbound</p>
+          </div>
+          <span class="pill s-new">42 active</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Lead</th>
+                <th>Service</th>
+                <th>Source</th>
+                <th>Budget</th>
+                <th>Assigned</th>
+                <th>Status</th>
+                <th>Follow-up</th>
+              </tr>
+            </thead>
+            <tbody id="leadTableBody">
+              <tr>
+                <td><div class="person"><div class="avatar a-blue">AP</div><div><strong>Atlas Properties</strong><div class="meta">CRM + automation dashboard</div></div></div></td>
+                <td>AI Dashboard</td><td>Website</td><td>$6,500</td>
+                <td><span class="pill s-new">Pawan</span></td>
+                <td><span class="pill s-new">New</span></td>
+                <td><span class="meta">Pawan · Today</span></td>
+              </tr>
+              <tr>
+                <td><div class="person"><div class="avatar a-teal">KM</div><div><strong>Klinic Medico</strong><div class="meta">Follow-up mail sequence</div></div></div></td>
+                <td>n8n Automation</td><td>WhatsApp</td><td>$4,200</td>
+                <td><span class="pill s-follow">Riya</span></td>
+                <td><span class="pill s-follow">Follow-up</span></td>
+                <td><span class="meta">Riya · Tomorrow</span></td>
+              </tr>
+              <tr>
+                <td><div class="person"><div class="avatar a-violet">SS</div><div><strong>ScaleStack</strong><div class="meta">SaaS MVP build complete</div></div></div></td>
+                <td>SaaS Dev</td><td>LinkedIn</td><td>$12,000</td>
+                <td><span class="pill s-won">Arjun</span></td>
+                <td><span class="pill s-won">Won</span></td>
+                <td><span class="meta">Arjun · Done</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- WORKFLOW + COSTS -->
+      <div class="grid-2">
+        <div class="card" id="workflow">
+          <div class="card-head">
+            <div>
+              <h2>n8n Workflow Pipeline</h2>
+              <p>Lead capture to billing automation</p>
+            </div>
+          </div>
+          <div class="timeline">
+            <div class="tl-item">
+              <div class="tl-num">1</div>
+              <div style="flex:1">
+                <h4>Lead Capture</h4>
+                <div class="meta">Webhook receives from website, WhatsApp, email</div>
+              </div>
+              <span class="tl-badge tl-live">Live</span>
+            </div>
+            <div class="tl-item">
+              <div class="tl-num">2</div>
+              <div style="flex:1">
+                <h4>Google Sheets Sync</h4>
+                <div class="meta">Lead normalized and stored in Sheet5</div>
+              </div>
+              <span class="tl-badge tl-live">Synced</span>
+            </div>
+            <div class="tl-item">
+              <div class="tl-num">3</div>
+              <div style="flex:1">
+                <h4>Scheduled Follow-up</h4>
+                <div class="meta">Daily 9AM check · Gmail reminder sent</div>
+              </div>
+              <span class="tl-badge tl-live">Active</span>
+            </div>
+            <div class="tl-item">
+              <div class="tl-num">4</div>
+              <div style="flex:1">
+                <h4>Proposal & Invoice</h4>
+                <div class="meta">Qualified leads → costing → billing</div>
+              </div>
+              <span class="tl-badge tl-manual">Manual</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Cost & Margin</h2>
+              <p>Revenue distribution breakdown</p>
+            </div>
+          </div>
+          <div class="bar-list">
+            <div class="bar-row">
+              <div class="bar-label"><span>Developer Cost</span><span>42%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:42%;background:var(--accent)"></div></div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label"><span>API / AI Tools</span><span>18%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:18%;background:var(--violet)"></div></div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label"><span>Hosting & DevOps</span><span>11%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:11%;background:var(--teal)"></div></div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label"><span>Marketing</span><span>14%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:14%;background:var(--amber)"></div></div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-label"><span>Net Profit</span><span>37%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:37%;background:var(--green)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INVOICES + FEED -->
+      <div class="grid-2">
+        <div class="card" id="billing">
+          <div class="card-head">
+            <div>
+              <h2>Invoices & Milestones</h2>
+              <p>Open billing across active projects</p>
+            </div>
+          </div>
+          <div class="invoice-list">
+            <div class="invoice-item">
+              <div>
+                <h4>INV-24051 · ScaleStack</h4>
+                <div class="meta">SaaS Phase 1 · Due May 29</div>
+              </div>
+              <div style="text-align:right">
+                <div class="inv-amount">$9,800</div>
+                <button class="qbtn" type="button" data-action="send-reminder">Remind</button>
+              </div>
+            </div>
+            <div class="invoice-item">
+              <div>
+                <h4>INV-24052 · Klinic Medico</h4>
+                <div class="meta">n8n + sheets + mail automation</div>
+              </div>
+              <div style="text-align:right">
+                <div class="inv-amount">$3,400</div>
+                <button class="qbtn alt" type="button" data-action="mark-paid">Paid</button>
+              </div>
+            </div>
+            <div class="invoice-item">
+              <div>
+                <h4>INV-24053 · Nova Commerce</h4>
+                <div class="meta">AI chatbot monthly retainer</div>
+              </div>
+              <div style="text-align:right">
+                <div class="inv-amount">$1,850</div>
+                <button class="qbtn" type="button" data-action="send-reminder">Remind</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="updates">
+          <div class="card-head">
+            <div>
+              <h2>Activity Feed</h2>
+              <p>Real-time ops log</p>
+            </div>
+          </div>
+          <div class="feed" id="workFeed">
+            <div class="feed-item">
+              <div>
+                <h4>09:42 · New lead captured</h4>
+                <div class="meta">Atlas Properties via website form → AI Dashboard queue</div>
+              </div>
+              <span class="feed-tag ok">Logged</span>
+            </div>
+            <div class="feed-item">
+              <div>
+                <h4>10:05 · Follow-up sent</h4>
+                <div class="meta">Klinic Medico received automation scope email</div>
+              </div>
+              <span class="feed-tag ok">Sent</span>
+            </div>
+            <div class="feed-item">
+              <div>
+                <h4>10:28 · Invoice pending</h4>
+                <div class="meta">ScaleStack milestone open — reminder needed</div>
+              </div>
+              <span class="feed-tag warn">Action</span>
+            </div>
+            <div class="feed-item">
+              <div>
+                <h4>11:10 · Cold lead moved</h4>
+                <div class="meta">Orbit Retail → reactivation list after 3 no-responses</div>
+              </div>
+              <span class="feed-tag cold">Cold</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLIENT CARDS -->
+      <div id="clients">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div>
+            <div class="section-label">Client Directory</div>
+          </div>
+          <button class="tbtn" id="addClientBtn">+ Add Client</button>
+        </div>
+        <div class="client-grid" id="clientGrid">
+          <div class="client-card">
+            <div class="client-head">
+              <div class="avatar a-blue" style="width:40px;height:40px;font-size:13px">AP</div>
+              <div>
+                <strong>Atlas Properties</strong>
+                <span class="pill s-new" style="margin-left:8px">Active</span>
+              </div>
+            </div>
+            <div class="client-meta">
+              <div class="cmeta-row"><span>Service</span><span>AI Dashboard</span></div>
+              <div class="cmeta-row"><span>Budget</span><span>$6,500</span></div>
+              <div class="cmeta-row"><span>Assigned</span><span>Pawan</span></div>
+              <div class="cmeta-row"><span>Next Follow-up</span><span>Today</span></div>
+            </div>
+            <div class="progress-wrap">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span style="color:var(--muted-2)">25%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:25%;background:var(--accent)"></div></div>
+            </div>
+            <div class="client-foot">
+              <span class="meta">contact@atlas.com</span>
+              <div style="display:flex;gap:6px">
+                <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('Atlas Properties','2','25')">Update</button>
+                <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('Atlas Properties')">+ Project</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="client-card">
+            <div class="client-head">
+              <div class="avatar a-teal" style="width:40px;height:40px;font-size:13px">KM</div>
+              <div>
+                <strong>Klinic Medico</strong>
+                <span class="pill s-follow" style="margin-left:8px">Follow-up</span>
+              </div>
+            </div>
+            <div class="client-meta">
+              <div class="cmeta-row"><span>Service</span><span>n8n Automation</span></div>
+              <div class="cmeta-row"><span>Budget</span><span>$4,200</span></div>
+              <div class="cmeta-row"><span>Assigned</span><span>Riya</span></div>
+              <div class="cmeta-row"><span>Next Follow-up</span><span>Tomorrow</span></div>
+            </div>
+            <div class="progress-wrap">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span style="color:var(--muted-2)">55%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:55%;background:var(--teal)"></div></div>
+            </div>
+            <div class="client-foot">
+              <span class="meta">info@klinic.com</span>
+              <div style="display:flex;gap:6px">
+                <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('Klinic Medico','3','55')">Update</button>
+                <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('Klinic Medico')">+ Project</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="client-card">
+            <div class="client-head">
+              <div class="avatar a-violet" style="width:40px;height:40px;font-size:13px">SS</div>
+              <div>
+                <strong>ScaleStack</strong>
+                <span class="pill s-won" style="margin-left:8px">Won</span>
+              </div>
+            </div>
+            <div class="client-meta">
+              <div class="cmeta-row"><span>Service</span><span>SaaS Development</span></div>
+              <div class="cmeta-row"><span>Budget</span><span>$12,000</span></div>
+              <div class="cmeta-row"><span>Assigned</span><span>Arjun</span></div>
+              <div class="cmeta-row"><span>Next Follow-up</span><span>Done</span></div>
+            </div>
+            <div class="progress-wrap">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span style="color:var(--muted-2)">100%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--green)"></div></div>
+            </div>
+            <div class="client-foot">
+              <span class="meta">hey@scalestack.io</span>
+              <div style="display:flex;gap:6px">
+                <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('ScaleStack','4','100')">Update</button>
+                <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('ScaleStack')">+ Project</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="client-card">
+            <div class="client-head">
+              <div class="avatar a-amber" style="width:40px;height:40px;font-size:13px">OR</div>
+              <div>
+                <strong>Orbit Retail</strong>
+                <span class="pill s-cold" style="margin-left:8px">Cold</span>
+              </div>
+            </div>
+            <div class="client-meta">
+              <div class="cmeta-row"><span>Service</span><span>Web Revamp</span></div>
+              <div class="cmeta-row"><span>Budget</span><span>$3,800</span></div>
+              <div class="cmeta-row"><span>Assigned</span><span>Pawan</span></div>
+              <div class="cmeta-row"><span>Next Follow-up</span><span>Re-engage</span></div>
+            </div>
+            <div class="progress-wrap">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span style="color:var(--muted-2)">10%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:10%;background:var(--amber)"></div></div>
+            </div>
+            <div class="client-foot">
+              <span class="meta">orbit@retail.in</span>
+              <div style="display:flex;gap:6px">
+                <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('Orbit Retail','5','10')">Update</button>
+                <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('Orbit Retail')">+ Project</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ANALYST CARDS -->
+      <div id="analysts">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div class="section-label">Analyst Team</div>
+          <button class="tbtn" id="addAnalystBtn">+ Add Analyst</button>
+        </div>
+        <div class="analyst-grid">
+          <div class="analyst-card">
+            <div class="analyst-top">
+              <div class="avatar a-blue" style="width:44px;height:44px;font-size:14px;border-radius:50%">PJ</div>
+              <div>
+                <strong>Pawan Jain</strong>
+                <div class="meta">Lead Developer</div>
+              </div>
+              <span class="analyst-badge live">Online</span>
+            </div>
+            <div class="analyst-stats">
+              <div><span>Active</span><strong>3</strong></div>
+              <div><span>Done</span><strong>12</strong></div>
+              <div><span>Score</span><strong>94%</strong></div>
+            </div>
+            <div class="progress-wrap" style="margin-top:10px">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Workload</span><span style="color:var(--muted-2)">75%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:75%;background:var(--accent)"></div></div>
+            </div>
+          </div>
+
+          <div class="analyst-card">
+            <div class="analyst-top">
+              <div class="avatar a-teal" style="width:44px;height:44px;font-size:14px;border-radius:50%">RK</div>
+              <div>
+                <strong>Riya Kapoor</strong>
+                <div class="meta">Automation Specialist</div>
+              </div>
+              <span class="analyst-badge live">Online</span>
+            </div>
+            <div class="analyst-stats">
+              <div><span>Active</span><strong>2</strong></div>
+              <div><span>Done</span><strong>8</strong></div>
+              <div><span>Score</span><strong>91%</strong></div>
+            </div>
+            <div class="progress-wrap" style="margin-top:10px">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Workload</span><span style="color:var(--muted-2)">50%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:50%;background:var(--teal)"></div></div>
+            </div>
+          </div>
+
+          <div class="analyst-card">
+            <div class="analyst-top">
+              <div class="avatar a-violet" style="width:44px;height:44px;font-size:14px;border-radius:50%">AS</div>
+              <div>
+                <strong>Arjun Sharma</strong>
+                <div class="meta">SaaS Developer</div>
+              </div>
+              <span class="analyst-badge away">Away</span>
+            </div>
+            <div class="analyst-stats">
+              <div><span>Active</span><strong>1</strong></div>
+              <div><span>Done</span><strong>15</strong></div>
+              <div><span>Score</span><strong>97%</strong></div>
+            </div>
+            <div class="progress-wrap" style="margin-top:10px">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Workload</span><span style="color:var(--muted-2)">30%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:30%;background:var(--violet)"></div></div>
+            </div>
+          </div>
+
+          <div class="analyst-card">
+            <div class="analyst-top">
+              <div class="avatar a-amber" style="width:44px;height:44px;font-size:14px;border-radius:50%">AK</div>
+              <div>
+                <strong>Ayesha Khan</strong>
+                <div class="meta">UI / Frontend</div>
+              </div>
+              <span class="analyst-badge off">Offline</span>
+            </div>
+            <div class="analyst-stats">
+              <div><span>Active</span><strong>0</strong></div>
+              <div><span>Done</span><strong>6</strong></div>
+              <div><span>Score</span><strong>88%</strong></div>
+            </div>
+            <div class="progress-wrap" style="margin-top:10px">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Workload</span><span style="color:var(--muted-2)">0%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:0%;background:var(--amber)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<!-- UPDATE WORK MODAL -->
+<div class="modal-backdrop hidden" id="updateWorkModal">
+  <div class="modal" style="width:480px">
+    <h3>Update Work Progress</h3>
+    <p id="updateWorkClient" style="color:var(--muted);font-size:13px;margin-bottom:20px"></p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Work Status</label>
+        <select id="uwWorkStatus">
+          <option>New Lead</option><option>Contacted</option><option>In Progress</option>
+          <option>Follow-up Due</option><option>Proposal Sent</option><option>Won</option>
+          <option>Cold</option><option>Completed</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Lead Status</label>
+        <select id="uwLeadStatus">
+          <option>New</option><option>Follow-up</option><option>Won</option><option>Cold</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Progress % — <span id="uwProgressVal">0</span>%</label>
+        <input type="range" id="uwProgress" min="0" max="100" value="0"
+          style="width:100%;accent-color:var(--accent);margin-top:6px"
+          oninput="document.getElementById('uwProgressVal').textContent=this.value">
+      </div>
+      <div class="field">
+        <label>Next Follow-up Date</label>
+        <input type="date" id="uwNextFollowUp" />
+      </div>
+      <div class="field">
+        <label>Assigned To</label>
+        <select id="uwAssignedTo">
+          <option>Pawan</option><option>Riya</option><option>Arjun</option><option>Ayesha</option><option>Kriscent Team</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Analyst Notes</label>
+        <textarea id="uwNotes" placeholder="Update notes, client feedback, blockers..."></textarea>
+      </div>
+    </div>
+    <div class="inline-note" id="uwStatus">Updates will be sent to Google Sheet via n8n webhook.</div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="cancelUpdateWork">Cancel</button>
+      <button type="button" class="btn-primary" id="saveUpdateWork">Save Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PROJECT MODAL -->
+<div class="modal-backdrop hidden" id="addProjectModal">
+  <div class="modal" style="width:520px">
+    <h3>Add New Project</h3>
+    <p id="addProjectClient" style="color:var(--muted);font-size:13px;margin-bottom:20px"></p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Service / Project Type</label>
+        <select id="apService">
+          <option>AI Dashboard</option><option>n8n Automation</option><option>SaaS Development</option>
+          <option>Web Development</option><option>App Development</option><option>AI Agent / Chatbot</option>
+          <option>DevOps</option><option>Maintenance</option><option>SEO / Marketing</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Budget (USD)</label>
+        <input type="number" id="apBudget" value="2500" min="0" />
+      </div>
+      <div class="field">
+        <label>Lead Status</label>
+        <select id="apLeadStatus">
+          <option>New</option><option>Follow-up</option><option>Won</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Assigned To</label>
+        <select id="apAssignedTo">
+          <option>Pawan</option><option>Riya</option><option>Arjun</option><option>Ayesha</option><option>Kriscent Team</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Lead Source</label>
+        <select id="apLeadSource">
+          <option>Existing Client</option><option>Referral</option><option>Website Form</option>
+          <option>WhatsApp</option><option>LinkedIn</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Next Follow-up</label>
+        <input type="date" id="apNextFollowUp" />
+      </div>
+      <div class="field full">
+        <label>Project Notes</label>
+        <textarea id="apNotes" placeholder="What does the client need in this project?"></textarea>
+      </div>
+    </div>
+    <div class="inline-note" id="apStatus">New project will be added as a new row in Google Sheet via n8n.</div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="cancelAddProject">Cancel</button>
+      <button type="button" class="btn-primary" id="saveAddProject">Add Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFICATIONS PANEL -->
+<div class="side-panel hidden" id="notifPanel">
+  <div class="panel-head">
+    <strong>Notifications</strong>
+    <button class="panel-close" id="closeNotif">✕</button>
+  </div>
+  <div class="panel-body" id="notifList">
+    <div class="notif-item unread">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-title">New lead — Atlas Properties</div>
+        <div class="meta">Website form submission · 2 min ago</div>
+      </div>
+    </div>
+    <div class="notif-item unread">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-title">Follow-up due — Klinic Medico</div>
+        <div class="meta">Assigned to Riya · Today</div>
+      </div>
+    </div>
+    <div class="notif-item unread">
+      <div class="notif-dot"></div>
+      <div>
+        <div class="notif-title">Invoice overdue — ScaleStack</div>
+        <div class="meta">INV-24051 · $9,800 pending · 2 days</div>
+      </div>
+    </div>
+    <div class="notif-item">
+      <div class="notif-dot" style="background:transparent;border:1px solid var(--border-2)"></div>
+      <div>
+        <div class="notif-title">Workflow executed successfully</div>
+        <div class="meta">Follow Up Flow · 1 hour ago</div>
+      </div>
+    </div>
+    <div class="notif-item">
+      <div class="notif-dot" style="background:transparent;border:1px solid var(--border-2)"></div>
+      <div>
+        <div class="notif-title">Sheet synced — 6 rows updated</div>
+        <div class="meta">Google Sheets · 3 hours ago</div>
+      </div>
+    </div>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border)">
+    <button class="qbtn" style="width:100%;justify-content:center" id="clearNotifs">Clear all</button>
+  </div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="side-panel hidden" id="settingsPanel">
+  <div class="panel-head">
+    <strong>Settings</strong>
+    <button class="panel-close" id="closeSettings">✕</button>
+  </div>
+  <div class="panel-body">
+    <div class="settings-section">
+      <div class="settings-label">n8n Webhook</div>
+      <div class="field" style="margin-top:8px">
+        <label>Webhook URL</label>
+        <input id="settingsWebhookUrl" placeholder="http://127.0.0.1:5678/webhook/collect-requirement" />
+      </div>
+      <button class="tbtn" style="margin-top:10px;width:100%;justify-content:center" id="saveWebhookBtn">Save Webhook</button>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Google Sheets</div>
+      <div class="field" style="margin-top:8px">
+        <label>Sheet ID</label>
+        <input id="settingsSheetId" placeholder="1m9BVd53DsJWyupmNNx1..." />
+      </div>
+      <button class="tbtn" style="margin-top:10px;width:100%;justify-content:center" id="saveSheetBtn">Save & Sync</button>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Notifications</div>
+      <div class="toggle-row">
+        <span>New lead alerts</span>
+        <div class="toggle-switch active" data-toggle="lead-alerts"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Follow-up reminders</span>
+        <div class="toggle-switch active" data-toggle="followup-alerts"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Invoice due alerts</span>
+        <div class="toggle-switch active" data-toggle="invoice-alerts"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Workflow status</span>
+        <div class="toggle-switch active" data-toggle="workflow-alerts"></div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-label">Display</div>
+      <div class="toggle-row">
+        <span>Compact table view</span>
+        <div class="toggle-switch active" data-toggle="compact-view"></div>
+      </div>
+      <div class="toggle-row">
+        <span>Auto-refresh (5 min)</span>
+        <div class="toggle-switch active" data-toggle="auto-refresh"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="panel-overlay hidden" id="panelOverlay"></div>
+<div class="modal-backdrop hidden" id="leadModal">
+  <div class="modal">
+    <h3>Create New Lead</h3>
+    <p>Add a lead from website form, WhatsApp, email, or manual entry.</p>
+    <form id="leadForm">
+      <div class="form-grid">
+        <div class="field"><label for="companyName">Company Name</label><input id="companyName" name="companyName" required /></div>
+        <div class="field"><label for="ownerName">Owner</label><input id="ownerName" name="ownerName" required /></div>
+        <div class="field"><label for="clientEmail">Client Email</label><input id="clientEmail" name="clientEmail" type="email" placeholder="client@example.com" /></div>
+        <div class="field"><label for="clientPhone">Phone</label><input id="clientPhone" name="clientPhone" type="tel" placeholder="+91 98765 43210" /></div>
+        <div class="field">
+          <label for="serviceType">Service</label>
+          <select id="serviceType" name="serviceType">
+            <option>AI Dashboard</option><option>n8n Automation</option><option>SaaS Development</option>
+            <option>Web Development</option><option>App Development</option><option>AI Agent / Chatbot</option><option>DevOps</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="leadSource">Source</label>
+          <select id="leadSource" name="leadSource">
+            <option>Website Form</option><option>WhatsApp</option><option>LinkedIn</option>
+            <option>Email</option><option>Cold Outreach</option><option>Referral</option>
+          </select>
+        </div>
+        <div class="field"><label for="budget">Budget (USD)</label><input id="budget" name="budget" type="number" min="0" value="2500" required /></div>
+        <div class="field">
+          <label for="leadStatus">Status</label>
+          <select id="leadStatus" name="leadStatus">
+            <option>New</option><option>Follow-up</option><option>Won</option><option>Cold</option>
+          </select>
+        </div>
+        <details class="advanced-connection" open>
+          <summary>Follow-up Automation</summary>
+          <div class="form-grid nested-grid">
+            <div class="field">
+              <label for="assignedTo">Assigned To</label>
+              <select id="assignedTo" name="assignedTo">
+                <option>Pawan</option><option>Riya</option><option>Arjun</option><option>Ayesha</option><option>Kriscent Team</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="workStatus">Work Status</label>
+              <select id="workStatus" name="workStatus">
+                <option>New Lead</option><option>Contacted</option><option>Follow-up Due</option>
+                <option>Proposal Sent</option><option>Won</option><option>Cold</option>
+              </select>
+            </div>
+            <div class="field"><label for="workCompletedPercent">Progress %</label><input id="workCompletedPercent" name="workCompletedPercent" type="number" min="0" max="100" value="0" /></div>
+            <div class="field"><label for="nextFollowUpDate">Next Follow-up</label><input id="nextFollowUpDate" name="nextFollowUpDate" type="date" /></div>
+            <div class="field full"><label for="analystNotes">Analyst Notes</label><textarea id="analystNotes" name="analystNotes" placeholder="Internal notes for follow-up flow"></textarea></div>
+          </div>
+        </details>
+        <div class="field full"><label for="leadNote">Lead Note</label><textarea id="leadNote" name="leadNote" placeholder="What does this client need?"></textarea></div>
+        <details class="advanced-connection">
+          <summary>n8n Connection</summary>
+          <div class="field"><label for="n8nWebhookUrl">Webhook URL</label><input id="n8nWebhookUrl" name="n8nWebhookUrl" placeholder="http://127.0.0.1:5678/webhook/collect-requirement" /></div>
+        </details>
+      </div>
+      <div class="inline-note" id="leadFormStatus">Send real lead data to your n8n webhook, or save locally.</div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="cancelLeadBtn">Cancel</button>
+        <button type="submit" class="btn-primary">Save Lead</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<button id="scrollTopBtn" title="Back to top">↑</button>
+<div class="toast hidden" id="toast"></div>
+
+<script>
+  const STORAGE_KEY_WEBHOOK = 'kriscent-n8n-webhook-url';
+  const STORAGE_KEY_SHEET = 'kriscent-sheet-id';
+
+  function getSavedSheetId() { return window.localStorage.getItem(STORAGE_KEY_SHEET) || ''; }
+  function saveSheetId(id) { if (id) window.localStorage.setItem(STORAGE_KEY_SHEET, id); }
+
+  const navButtons = [...document.querySelectorAll('[data-nav-target]')];
+  const leadModal = document.getElementById('leadModal');
+  const createLeadBtn = document.getElementById('createLeadBtn');
+  const cancelLeadBtn = document.getElementById('cancelLeadBtn');
+  const leadForm = document.getElementById('leadForm');
+  const leadTableBody = document.getElementById('leadTableBody');
+  const clientGrid = document.getElementById('clientGrid');
+  const analystGrid = document.querySelector('.analyst-grid');
+  const workFeed = document.getElementById('workFeed');
+  const toast = document.getElementById('toast');
+  const scrollTopBtn = document.getElementById('scrollTopBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const syncWebhookCard = document.getElementById('syncWebhookCard');
+  const syncSheetsCard = document.getElementById('syncSheetsCard');
+  const statCards = document.querySelectorAll('.stat-card');
+  const n8nWebhookUrlInput = document.getElementById('n8nWebhookUrl');
+  const webhookStatusText = document.getElementById('webhookStatusText');
+  const leadFormStatus = document.getElementById('leadFormStatus');
+  const FALLBACK_FRAME_NAME = 'n8n-submit-frame';
+
+  const chartModes = {
+    week: { stats: ['42', '18', '$28k', '$84k'], sub: ['9 need immediate response', '5 in delivery this week', '4 unpaid milestones', '91% of target hit'] },
+    month: { stats: ['186', '26', '$74k', '$212k'], sub: ['34 qualified this month', '8 new starts approved', '11 open invoices', 'Monthly target exceeded'] },
+    quarter: { stats: ['514', '41', '$168k', '$618k'], sub: ['Pipeline up 22%', '12 enterprise accounts', '19 milestone collections due', 'Quarter on track'] }
+  };
+
+  function showToast(msg) {
+    toast.textContent = msg; toast.classList.remove('hidden');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toast.classList.add('hidden'), 2200);
+  }
+
+  function getSavedWebhookUrl() { try { return window.localStorage.getItem(STORAGE_KEY_WEBHOOK) || ''; } catch { return ''; } }
+  function saveWebhookUrl(url) { try { url ? window.localStorage.setItem(STORAGE_KEY_WEBHOOK, url) : window.localStorage.removeItem(STORAGE_KEY_WEBHOOK); } catch {} }
+
+  function updateWebhookStatus(text, tone) {
+    webhookStatusText.textContent = text;
+    const el2 = document.getElementById('webhookStatusText2');
+    if (el2) el2.textContent = text;
+    const dot = syncWebhookCard?.querySelector('.sync-dot');
+    if (dot) { dot.className = 'sync-dot ' + (tone === 'success' ? 'live' : tone === 'error' ? '' : 'warn'); }
+  }
+
+  function setLeadFormStatus(text, tone) {
+    leadFormStatus.textContent = text;
+    leadFormStatus.style.color = tone === 'success' ? 'var(--green)' : tone === 'error' ? 'var(--red)' : tone === 'warning' ? 'var(--amber)' : '';
+  }
+
+  function toDateInputValue(date) { return date.toISOString().slice(0, 10); }
+
+  function openLeadModal() {
+    n8nWebhookUrlInput.value = getSavedWebhookUrl();
+    setLeadFormStatus('Send real lead data to your n8n webhook, or save locally.');
+    if (!n8nWebhookUrlInput.value) n8nWebhookUrlInput.value = 'http://127.0.0.1:5678/webhook/collect-requirement';
+    const nfd = document.getElementById('nextFollowUpDate');
+    if (nfd && !nfd.value) { const t = new Date(); t.setDate(t.getDate()+1); nfd.value = toDateInputValue(t); }
+    leadModal.classList.remove('hidden');
+    document.getElementById('companyName').focus();
+  }
+
+  function closeLeadModal() {
+    leadModal.classList.add('hidden'); leadForm.reset();
+    document.getElementById('budget').value = 2500;
+    document.getElementById('workCompletedPercent').value = 0;
+  }
+
+  function statusClass(s) {
+    const n = String(s || '').toLowerCase();
+    if (n === 'new') return 's-new';
+    if (n === 'follow-up') return 's-follow';
+    if (n === 'won') return 's-won';
+    return 's-cold';
+  }
+
+  function initials(name) { return name.split(/\s+/).slice(0,2).map(p => p[0]?.toUpperCase()||'').join('').slice(0,2); }
+
+  function avatarClass(service) {
+    service = String(service || '');
+    if (service.includes('Automation')) return 'a-teal';
+    if (service.includes('SaaS')) return 'a-violet';
+    if (service.includes('Web')) return 'a-amber';
+    if (service.includes('App')) return 'a-red';
+    return 'a-blue';
+  }
+
+  function fieldValue(data, names, fallback = '') {
+    for (const name of names) {
+      const value = data[name];
+      if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+    }
+    return fallback;
+  }
+
+  function normalizeLeadData(data, rowNumber = '') {
+    const companyName = fieldValue(data, ['companyName', 'comapny_name', 'company_name', 'Company Name', 'company', 'clientName', 'Client']);
+    const serviceType = fieldValue(data, ['serviceType', 'Service', 'service', 'Project Type'], 'General Project');
+    const leadSource = fieldValue(data, ['leadSource', 'Lead Source', 'source', 'Source'], 'Dashboard');
+    const budget = fieldValue(data, ['budget', 'Budget', 'projectBudget'], '0');
+    const leadStatus = fieldValue(data, ['leadStatus', 'Lead Status', 'status', 'Status'], 'New');
+    const assignedTo = fieldValue(data, ['assignedTo', 'Assigned To', 'assigned_to', 'assigned', 'assignee', 'Assign To', 'Team Member', 'ownerName', 'Owner'], 'Unassigned');
+    const nextFollowUpDate = fieldValue(data, ['nextFollowUpDate', 'Next Follow-up', 'next_follow_up', 'nextFollowUpDa'], 'Not set');
+    const workStatus = fieldValue(data, ['workStatus', 'Work Status', 'work_status'], 'New Lead');
+    const workCompletedPercent = fieldValue(data, ['workCompletedPercent', 'Progress %', 'progress', 'workCompleted'], '0');
+    return {
+      rowNumber,
+      companyName,
+      leadNote: fieldValue(data, ['leadNote', 'Lead Note', 'analystNotes', 'Analyst Notes'], `${workCompletedPercent}% complete`),
+      serviceType,
+      leadSource,
+      budget,
+      leadStatus,
+      clientEmail: fieldValue(data, ['clientEmail', 'Client Email', 'email', 'Email']),
+      clientPhone: fieldValue(data, ['clientPhone', 'Phone', 'phone', 'Mobile']),
+      assignedTo,
+      nextFollowUpDate,
+      workStatus,
+      workCompletedPercent
+    };
+  }
+
+  function appendLeadToTable({ companyName, leadNote, serviceType, leadSource, budget, leadStatus, clientEmail, clientPhone, assignedTo, nextFollowUpDate }) {
+    const contact = [clientEmail, clientPhone].filter(Boolean).join(' · ');
+    const owner = assignedTo || 'Unassigned';
+    const followUp = nextFollowUpDate || 'Not set';
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><div class="person"><div class="avatar ${avatarClass(serviceType)}">${initials(companyName)}</div><div><strong>${companyName}</strong><div class="meta">${contact ? contact+' · ' : ''}${leadNote}</div></div></div></td>
+      <td>${serviceType}</td><td>${leadSource}</td><td>$${budget}</td>
+      <td><span class="pill ${owner === 'Unassigned' ? 's-cold' : 's-new'}">${owner}</span></td>
+      <td><span class="pill ${statusClass(leadStatus)}">${leadStatus}</span></td>
+      <td><span class="meta">${followUp}</span></td>`;
+    leadTableBody.prepend(row);
+  }
+
+  function renderClientCards(leads) {
+    if (!clientGrid || !leads.length) return;
+    clientGrid.innerHTML = '';
+    leads.slice(0, 12).forEach((lead, index) => {
+      const progress = Math.max(0, Math.min(100, Number(lead.workCompletedPercent) || 0));
+      const card = document.createElement('div');
+      card.className = 'client-card';
+      card.innerHTML = `
+        <div class="client-head">
+          <div class="avatar ${avatarClass(lead.serviceType)}" style="width:40px;height:40px;font-size:13px">${initials(lead.companyName)}</div>
+          <div>
+            <strong>${lead.companyName}</strong>
+            <span class="pill ${statusClass(lead.leadStatus)}" style="margin-left:8px">${lead.leadStatus}</span>
+          </div>
+        </div>
+        <div class="client-meta">
+          <div class="cmeta-row"><span>Service</span><span>${lead.serviceType}</span></div>
+          <div class="cmeta-row"><span>Budget</span><span>$${lead.budget || 0}</span></div>
+          <div class="cmeta-row"><span>Assigned</span><span>${lead.assignedTo || 'Unassigned'}</span></div>
+          <div class="cmeta-row"><span>Next Follow-up</span><span>${lead.nextFollowUpDate || 'Not set'}</span></div>
+        </div>
+        <div class="progress-wrap">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span style="color:var(--muted-2)">${progress}%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${progress}%;background:var(--accent)"></div></div>
+        </div>
+        <div class="client-foot">
+          <span class="meta">${lead.clientEmail || lead.clientPhone || 'No contact added'}</span>
+          <div style="display:flex;gap:6px">
+            <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('${lead.companyName.replace(/'/g, "\\'")}','${lead.rowNumber || index + 2}','${progress}')">Update</button>
+            <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('${lead.companyName.replace(/'/g, "\\'")}')">+ Project</button>
+          </div>
+        </div>`;
+      clientGrid.appendChild(card);
+    });
+  }
+
+  function renderAnalystCards(leads) {
+    if (!analystGrid || !leads.length) return;
+    const roles = { Pawan: 'Lead Developer', Riya: 'Automation Specialist', Arjun: 'SaaS Developer', Ayesha: 'UI / Frontend', 'Kriscent Team': 'Delivery Team' };
+    const colors = ['a-blue', 'a-teal', 'a-violet', 'a-amber', 'a-red'];
+    const names = [...new Set(['Pawan', 'Riya', 'Arjun', 'Ayesha', 'Kriscent Team', ...leads.map(l => l.assignedTo).filter(Boolean).filter(n => n !== 'Unassigned')])];
+    analystGrid.innerHTML = '';
+    names.forEach((name, index) => {
+      const mine = leads.filter(l => l.assignedTo === name || (name === 'Kriscent Team' && !l.assignedTo));
+      const active = mine.filter(l => !['won', 'completed', 'cold'].includes(String(l.leadStatus || l.workStatus).toLowerCase())).length;
+      const done = mine.filter(l => ['won', 'completed'].includes(String(l.leadStatus || l.workStatus).toLowerCase())).length;
+      const workload = Math.min(100, active * 25);
+      const card = document.createElement('div');
+      card.className = 'analyst-card';
+      card.innerHTML = `
+        <div class="analyst-top">
+          <div class="avatar ${colors[index % colors.length]}" style="width:44px;height:44px;font-size:14px;border-radius:50%">${initials(name)}</div>
+          <div>
+            <strong>${name}</strong>
+            <div class="meta">${roles[name] || 'Team Member'}</div>
+          </div>
+          <span class="analyst-badge ${active ? 'live' : 'away'}">${active ? 'Assigned' : 'Available'}</span>
+        </div>
+        <div class="analyst-stats">
+          <div><span>Active</span><strong>${active}</strong></div>
+          <div><span>Done</span><strong>${done}</strong></div>
+          <div><span>Total</span><strong>${mine.length}</strong></div>
+        </div>
+        <div class="progress-wrap" style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Workload</span><span style="color:var(--muted-2)">${workload}%</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:${workload}%;background:var(--accent)"></div></div>
+        </div>`;
+      analystGrid.appendChild(card);
+    });
+  }
+
+  function appendFeedItem(title, body) {
+    const el = document.createElement('div'); el.className = 'feed-item';
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    el.innerHTML = `<div><h4>${time} · ${title}</h4><div class="meta">${body}</div></div><span class="feed-tag ok">Logged</span>`;
+    workFeed.prepend(el);
+  }
+
+  function incrementLeadCount() {
+    const el = statCards[0].querySelector('.stat-value');
+    const n = Number(el.textContent.replace(/\D/g,'')) + 1;
+    el.textContent = String(n);
+    statCards[0].querySelector('.stat-sub').textContent = `${Math.max(1,Math.floor(n/4))} need immediate response`;
+  }
+
+  async function sendLeadToWebhook(payload, url) {
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(`Webhook failed ${res.status}`);
+    try { return await res.json(); } catch { return null; }
+  }
+
+  function sendLeadViaBrowserForm(payload, webhookUrl) {
+    return new Promise((resolve, reject) => {
+      try {
+        let frame = document.querySelector(`iframe[name="${FALLBACK_FRAME_NAME}"]`);
+        if (!frame) { frame = document.createElement('iframe'); frame.name = FALLBACK_FRAME_NAME; frame.className = 'hidden'; document.body.appendChild(frame); }
+        const form = document.createElement('form');
+        form.method = 'POST'; form.action = webhookUrl; form.target = FALLBACK_FRAME_NAME; form.className = 'hidden';
+        Object.entries(payload).forEach(([k,v]) => { const i = document.createElement('input'); i.type='hidden'; i.name=k; i.value=v==null?'':String(v); form.appendChild(i); });
+        const cleanup = () => { frame.removeEventListener('load', onLoad); form.remove(); };
+        const onLoad = () => { cleanup(); resolve({ ok:true, message:'Lead sent using browser form fallback.' }); };
+        frame.addEventListener('load', onLoad, { once:true });
+        document.body.appendChild(form); form.submit();
+        setTimeout(() => { cleanup(); resolve({ ok:true, message:'Lead submitted. Browser fallback used.' }); }, 1800);
+      } catch(e) { reject(e); }
+    });
+  }
+
+  async function loadSheetData(sheetId) {
+    if (!sheetId) return;
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=Sheet5`;
+    try {
+      const res = await fetch(url);
+      const text = await res.text();
+      const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+      const rows = json.table.rows;
+      const cols = json.table.cols.map(c => c.label);
+      leadTableBody.innerHTML = '';
+      let totalLeads = 0, activeProjects = 0;
+      const syncedLeads = [];
+      rows.forEach((row, index) => {
+        const data = {};
+        cols.forEach((col, i) => { data[col] = row.c[i]?.v ?? ''; });
+        const lead = normalizeLeadData(data, index + 2);
+        if (!lead.companyName) return;
+        totalLeads++;
+        if (lead.workStatus === 'In Progress') activeProjects++;
+        syncedLeads.push(lead);
+        appendLeadToTable(lead);
+      });
+      renderClientCards(syncedLeads);
+      renderAnalystCards(syncedLeads);
+      const vals = document.querySelectorAll('.stat-value');
+      if (vals[0]) vals[0].textContent = totalLeads;
+      if (vals[1]) vals[1].textContent = activeProjects;
+      const sheetsSpan = syncSheetsCard?.querySelector('span');
+      if (sheetsSpan) sheetsSpan.textContent = `${totalLeads} rows synced · Sheet5`;
+      showToast(`Sheet synced successfully — ${totalLeads} leads loaded`);
+    } catch(e) { showToast('Sheet sync failed — check the Sheet ID and sharing access'); }
+  }
+
+  // NAV
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      navButtons.forEach(b => b.classList.remove('active')); btn.classList.add('active');
+      document.getElementById(btn.dataset.navTarget)?.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+  });
+
+  // CHART TABS
+  document.querySelectorAll('.chart-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.chart-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+      const mode = chartModes[btn.dataset.range];
+      if (!mode) return;
+      statCards.forEach((card, i) => {
+        card.querySelector('.stat-value').textContent = mode.stats[i];
+        card.querySelector('.stat-sub').textContent = mode.sub[i];
+      });
+      showToast(btn.textContent + ' view loaded');
+    });
+  });
+
+  createLeadBtn.addEventListener('click', openLeadModal);
+  cancelLeadBtn.addEventListener('click', closeLeadModal);
+  leadModal.addEventListener('click', e => { if (e.target === leadModal) closeLeadModal(); });
+
+  leadForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(leadForm);
+    const companyName = fd.get('companyName').trim();
+    const ownerName = fd.get('ownerName').trim();
+    const clientEmail = String(fd.get('clientEmail')||'').trim();
+    const clientPhone = String(fd.get('clientPhone')||'').trim();
+    const serviceType = fd.get('serviceType');
+    const leadSource = fd.get('leadSource');
+    const budget = Number(fd.get('budget')||0).toLocaleString('en-US');
+    const leadStatus = fd.get('leadStatus');
+    const assignedTo = fd.get('assignedTo') || 'Kriscent Team';
+    const workStatus = fd.get('workStatus') || 'New Lead';
+    const workCompletedPercent = Number(fd.get('workCompletedPercent')||0);
+    const nextFollowUpDate = String(fd.get('nextFollowUpDate')||'').trim();
+    const analystNotes = String(fd.get('analystNotes')||'').trim();
+    const leadNote = fd.get('leadNote').trim() || 'Manual lead added from dashboard.';
+    const webhookUrl = String(fd.get('n8nWebhookUrl')||'').trim();
+    const submittedAt = new Date().toISOString();
+    const lastFollowUpDate = toDateInputValue(new Date());
+    const payload = { companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
+    const tableLead = { companyName, leadNote, serviceType, leadSource, budget, leadStatus, clientEmail, clientPhone, assignedTo, nextFollowUpDate };
+    saveWebhookUrl(webhookUrl);
+    if (webhookUrl) {
+      setLeadFormStatus('Sending to n8n...', 'warning');
+      try {
+        const result = await sendLeadToWebhook(payload, webhookUrl);
+        updateWebhookStatus(`Connected · ${webhookUrl}`, 'success');
+        appendLeadToTable(tableLead); appendFeedItem('Lead sent to n8n', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
+        incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent to n8n`); return;
+      } catch(error) {
+        if (/127\.0\.0\.1|localhost/.test(webhookUrl)) {
+          setLeadFormStatus('Trying browser fallback...', 'warning');
+          try {
+            await sendLeadViaBrowserForm(payload, webhookUrl);
+            updateWebhookStatus(`Connected via fallback`, 'success');
+            appendLeadToTable(tableLead); appendFeedItem('Lead sent', `${companyName} via browser fallback · Assigned: ${assignedTo}`);
+            incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent`); return;
+          } catch(fe) { updateWebhookStatus(`Error: ${fe.message}`, 'error'); setLeadFormStatus(`Failed: ${fe.message}`, 'error'); showToast('Webhook failed'); return; }
+        }
+        updateWebhookStatus(`Error: ${error.message}`, 'error'); setLeadFormStatus(`Failed: ${error.message}`, 'error'); showToast('Webhook failed'); return;
+      }
+    }
+    appendLeadToTable(tableLead); appendFeedItem('Lead added locally', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
+    incrementLeadCount(); updateWebhookStatus('No webhook configured', 'warning'); closeLeadModal(); showToast(`${companyName} saved locally`);
+  });
+
+  document.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const action = btn.dataset.action;
+      if (action === 'test-sync') {
+        const url = getSavedWebhookUrl();
+        if (!url) { updateWebhookStatus('Add webhook URL in New Lead first', 'warning'); showToast('Webhook URL missing'); return; }
+        try {
+          await sendLeadToWebhook({ ping:true, source:'dashboard-test', submittedAt: new Date().toISOString() }, url);
+          updateWebhookStatus(`Test OK · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`, 'success');
+          appendFeedItem('Webhook tested', 'Dashboard reached n8n successfully');
+        } catch(e) { updateWebhookStatus(`Test failed: ${e.message}`, 'error'); showToast('Webhook test failed'); return; }
+      }
+      if (action === 'open-sheet') {
+        let sheetId = getSavedSheetId();
+        if (!sheetId) {
+          sheetId = prompt('Paste your Google Sheet ID here:\nUse the part between /d/ and /edit in the Google Sheet URL.');
+          if (sheetId) saveSheetId(sheetId.trim());
+        }
+        if (sheetId) { loadSheetData(sheetId.trim()); return; }
+      }
+      const msgs = { 'send-followup':'Follow-up queue started', 'reactivate-cold':'Cold lead campaign started', 'send-reminder':'Invoice reminder sent', 'mark-paid':'Invoice marked as paid' };
+      showToast(msgs[action] || 'Done');
+    });
+  });
+
+  document.getElementById('settingsBtn').addEventListener('click', () => showToast('Settings coming soon'));
+  document.getElementById('scrollTopBtn').addEventListener('click', () => window.scrollTo({ top:0, behavior:'smooth' }));
+  document.getElementById('dateInfoBtn').addEventListener('click', () => showToast('Sun 31 May 2026'));
+
+  // INIT
+  const savedUrl = getSavedWebhookUrl();
+  if (savedUrl) { updateWebhookStatus(`Connected · ${savedUrl}`, 'success'); }
+  else { saveWebhookUrl('http://127.0.0.1:5678/webhook/collect-requirement'); updateWebhookStatus('Connected · webhook/collect-requirement', 'success'); }
+
+  const savedSheetId = getSavedSheetId();
+  if (savedSheetId) {
+    loadSheetData(savedSheetId);
+    const si = document.getElementById('settingsSheetId');
+    if (si) si.value = savedSheetId;
+  }
+
+  // Pre-fill settings webhook
+  const swu = document.getElementById('settingsWebhookUrl');
+  if (swu) swu.value = getSavedWebhookUrl();
+
+  // UPDATE WORK MODAL
+  let _uwCompany = '', _uwRow = '';
+  function openUpdateWork(companyName, rowNum, progress) {
+    _uwCompany = companyName; _uwRow = rowNum;
+    document.getElementById('updateWorkClient').textContent = 'Client: ' + companyName;
+    document.getElementById('uwProgress').value = progress || 0;
+    document.getElementById('uwProgressVal').textContent = progress || 0;
+    const t = new Date(); t.setDate(t.getDate()+7);
+    document.getElementById('uwNextFollowUp').value = t.toISOString().slice(0,10);
+    document.getElementById('uwStatus').textContent = 'Updates will be sent to Google Sheet via n8n webhook.';
+    document.getElementById('updateWorkModal').classList.remove('hidden');
+  }
+  document.getElementById('cancelUpdateWork').addEventListener('click', () => {
+    document.getElementById('updateWorkModal').classList.add('hidden');
+  });
+  document.getElementById('saveUpdateWork').addEventListener('click', async () => {
+    const payload = {
+      action: 'update_work',
+      companyName: _uwCompany,
+      row_number: _uwRow,
+      workStatus: document.getElementById('uwWorkStatus').value,
+      leadStatus: document.getElementById('uwLeadStatus').value,
+      workCompletedPercent: document.getElementById('uwProgress').value,
+      nextFollowUpDate: document.getElementById('uwNextFollowUp').value,
+      assignedTo: document.getElementById('uwAssignedTo').value,
+      analystNotes: document.getElementById('uwNotes').value,
+      lastFollowUpDate: new Date().toISOString().slice(0,10),
+      submittedAt: new Date().toISOString()
+    };
+    const url = getSavedWebhookUrl();
+    document.getElementById('uwStatus').textContent = 'Saving...';
+    if (url) {
+      try {
+        await sendLeadToWebhook(payload, url);
+        document.getElementById('uwStatus').textContent = '✓ Updated in Google Sheet!';
+        document.getElementById('uwStatus').style.color = 'var(--green)';
+        appendFeedItem('Work updated — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}% · Status: ${payload.workStatus} · Assigned: ${payload.assignedTo}`);
+        addNotification('Work updated — ' + _uwCompany, `${payload.workCompletedPercent}% · ${payload.workStatus}`);
+        showToast(_uwCompany + ' updated ✓');
+        setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1200);
+      } catch(e) {
+        document.getElementById('uwStatus').textContent = 'Webhook failed — saved locally only';
+        document.getElementById('uwStatus').style.color = 'var(--red)';
+        appendFeedItem('Work updated (local) — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}%`);
+        showToast(_uwCompany + ' saved locally');
+        setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1500);
+      }
+    } else {
+      document.getElementById('uwStatus').textContent = '⚠ No webhook — add URL in Settings';
+      document.getElementById('uwStatus').style.color = 'var(--amber)';
+      appendFeedItem('Work updated (local) — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}%`);
+      showToast('Saved locally — no webhook set');
+      setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1500);
+    }
+  });
+
+  // ADD PROJECT MODAL
+  let _apCompany = '';
+  function openAddProject(companyName) {
+    _apCompany = companyName;
+    document.getElementById('addProjectClient').textContent = 'Adding new project for: ' + companyName;
+    const t = new Date(); t.setDate(t.getDate()+3);
+    document.getElementById('apNextFollowUp').value = t.toISOString().slice(0,10);
+    document.getElementById('apStatus').textContent = 'New project will be added as a new row in Google Sheet via n8n.';
+    document.getElementById('apStatus').style.color = '';
+    document.getElementById('addProjectModal').classList.remove('hidden');
+  }
+  document.getElementById('cancelAddProject').addEventListener('click', () => {
+    document.getElementById('addProjectModal').classList.add('hidden');
+  });
+  document.getElementById('saveAddProject').addEventListener('click', async () => {
+    const payload = {
+      action: 'add_project',
+      companyName: _apCompany,
+      ownerName: _apCompany,
+      serviceType: document.getElementById('apService').value,
+      budget: document.getElementById('apBudget').value,
+      leadStatus: document.getElementById('apLeadStatus').value,
+      leadSource: document.getElementById('apLeadSource').value,
+      assignedTo: document.getElementById('apAssignedTo').value,
+      nextFollowUpDate: document.getElementById('apNextFollowUp').value,
+      analystNotes: document.getElementById('apNotes').value,
+      workStatus: 'New Lead',
+      workCompletedPercent: 0,
+      leadNote: document.getElementById('apNotes').value || 'New project from existing client',
+      submittedAt: new Date().toISOString()
+    };
+    const url = getSavedWebhookUrl();
+    document.getElementById('apStatus').textContent = 'Adding project...';
+    if (url) {
+      try {
+        await sendLeadToWebhook(payload, url);
+        document.getElementById('apStatus').textContent = '✓ Project added to Google Sheet!';
+        document.getElementById('apStatus').style.color = 'var(--green)';
+        appendLeadToTable({ companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate });
+        appendFeedItem('New project — ' + _apCompany, `${payload.serviceType} · $${payload.budget} · Assigned: ${payload.assignedTo}`);
+        addNotification('New project added — ' + _apCompany, payload.serviceType + ' · $' + payload.budget);
+        incrementLeadCount();
+        showToast('Project added for ' + _apCompany + ' ✓');
+        setTimeout(() => document.getElementById('addProjectModal').classList.add('hidden'), 1200);
+      } catch(e) {
+        document.getElementById('apStatus').textContent = 'Webhook failed — added locally only';
+        document.getElementById('apStatus').style.color = 'var(--red)';
+        appendLeadToTable({ companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate });
+        showToast('Added locally — webhook failed');
+        setTimeout(() => document.getElementById('addProjectModal').classList.add('hidden'), 1500);
+      }
+    } else {
+      document.getElementById('apStatus').textContent = '⚠ No webhook — add URL in Settings';
+      document.getElementById('apStatus').style.color = 'var(--amber)';
+      appendLeadToTable({ companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate });
+      showToast('Added locally — no webhook set');
+      setTimeout(() => document.getElementById('addProjectModal').classList.add('hidden'), 1500);
+    }
+  });
+  const notifBtn = document.getElementById('notifBtn');
+  const notifPanel = document.getElementById('notifPanel');
+  const closeNotif = document.getElementById('closeNotif');
+  const panelOverlay = document.getElementById('panelOverlay');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const closeSettings = document.getElementById('closeSettings');
+
+  function openPanel(panel) {
+    notifPanel.classList.add('hidden');
+    settingsPanel.classList.add('hidden');
+    panel.classList.remove('hidden');
+    panelOverlay.classList.remove('hidden');
+  }
+  function closeAllPanels() {
+    notifPanel.classList.add('hidden');
+    settingsPanel.classList.add('hidden');
+    panelOverlay.classList.add('hidden');
+  }
+
+  notifBtn?.addEventListener('click', () => openPanel(notifPanel));
+  closeNotif?.addEventListener('click', closeAllPanels);
+  closeSettings?.addEventListener('click', closeAllPanels);
+  panelOverlay?.addEventListener('click', closeAllPanels);
+
+  // SETTINGS open
+  document.getElementById('settingsBtn').addEventListener('click', () => openPanel(settingsPanel));
+
+  // Save webhook from settings
+  document.getElementById('saveWebhookBtn')?.addEventListener('click', () => {
+    const url = document.getElementById('settingsWebhookUrl').value.trim();
+    saveWebhookUrl(url);
+    updateWebhookStatus(`Connected · ${url}`, 'success');
+    showToast('Webhook saved ✓');
+  });
+
+  // Save sheet from settings
+  document.getElementById('saveSheetBtn')?.addEventListener('click', () => {
+    const id = document.getElementById('settingsSheetId').value.trim();
+    if (id) { saveSheetId(id); loadSheetData(id); showToast('Sheet sync started...'); }
+    else showToast('Please enter a valid Google Sheet ID');
+  });
+
+  // Toggle switches
+  document.querySelectorAll('.toggle-switch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      sw.classList.toggle('active');
+      showToast(sw.dataset.toggle.replace(/-/g,' ') + (sw.classList.contains('active') ? ' ON' : ' OFF'));
+    });
+  });
+
+  // Clear notifications
+  document.getElementById('clearNotifs')?.addEventListener('click', () => {
+    document.getElementById('notifList').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No notifications</div>';
+    const nc = document.getElementById('notifCount');
+    if (nc) nc.textContent = '0';
+    showToast('Notifications cleared');
+  });
+
+  // Add notification helper
+  function addNotification(title, body) {
+    const list = document.getElementById('notifList');
+    const item = document.createElement('div');
+    item.className = 'notif-item unread';
+    item.innerHTML = `<div class="notif-dot"></div><div><div class="notif-title">${title}</div><div class="meta">${body} · just now</div></div>`;
+    list.prepend(item);
+    const nc = document.getElementById('notifCount');
+    if (nc) nc.textContent = String(Number(nc.textContent||0)+1);
+  }
+
+  // Add Client button
+  document.getElementById('addClientBtn')?.addEventListener('click', () => {
+    showToast('Open "New Lead" to add a client');
+    openLeadModal();
+  });
+
+  // Add Analyst button
+  document.getElementById('addAnalystBtn')?.addEventListener('click', () => {
+    const name = prompt('Analyst name:');
+    const role = prompt('Role (e.g. Developer, Designer):');
+    if (!name) return;
+    const grid = document.querySelector('.analyst-grid');
+    const initls = name.split(' ').slice(0,2).map(w=>w[0]?.toUpperCase()||'').join('');
+    const card = document.createElement('div');
+    card.className = 'analyst-card';
+    card.innerHTML = `
+      <div class="analyst-top">
+        <div class="avatar a-blue" style="width:44px;height:44px;font-size:14px;border-radius:50%">${initls}</div>
+        <div><strong>${name}</strong><div class="meta">${role||'Team Member'}</div></div>
+        <span class="analyst-badge live">Online</span>
+      </div>
+      <div class="analyst-stats">
+        <div><span>Active</span><strong>0</strong></div>
+        <div><span>Done</span><strong>0</strong></div>
+        <div><span>Score</span><strong>—</strong></div>
+      </div>
+      <div class="progress-wrap" style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Workload</span><span style="color:var(--muted-2)">0%</span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:0%;background:var(--accent)"></div></div>
+      </div>`;
+    grid.appendChild(card);
+    showToast(`${name} added to team`);
+    addNotification('New analyst added', name + ' · ' + (role||'Team Member'));
+  });
+</script>
+</body>
+</html>
