@@ -67,6 +67,7 @@
       background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
       display: grid; place-items: center; padding: 0 3px;
     }
+    .nav-badge.hidden { display: none !important; }
     .nav-divider { width: 28px; height: 1px; background: var(--border); margin: 6px 0; }
     .nav-spacer { flex: 1; }
 
@@ -426,6 +427,7 @@
       background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
       display: grid; place-items: center; padding: 0 3px;
     }
+    .notif-count.hidden { display: none !important; }
 
     /* SETTINGS */
     .settings-section { padding: 16px; border-bottom: 1px solid var(--border); }
@@ -647,7 +649,7 @@
     <div class="nav-divider"></div>
     <button class="nav-btn" data-nav-target="updates" title="Feed">
       ≡
-      <span class="nav-badge">4</span>
+      <span class="nav-badge" id="feedBadge">4</span>
     </button>
     <div class="nav-spacer"></div>
     <button class="nav-btn" id="settingsBtn" title="Settings">⚙</button>
@@ -659,7 +661,7 @@
     <header class="topbar">
       <div class="topbar-left">
         <h1>Kriscent Techno Hub — Operations</h1>
-        <span id="dateInfoBtn" style="cursor:pointer">Sun 31 May 2026 &nbsp;·&nbsp; n8n Active</span>
+        <span id="dateInfoBtn" style="cursor:pointer">Loading date &nbsp;·&nbsp; n8n Active</span>
       </div>
       <div class="topbar-right">
         <div style="display:flex;align-items:center;gap:6px;padding:0 10px;height:34px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface-2);">
@@ -1966,9 +1968,27 @@
     });
   });
 
-  document.getElementById('settingsBtn').addEventListener('click', () => showToast('Settings coming soon'));
+  document.getElementById('settingsBtn')?.addEventListener('click', () => {});
   document.getElementById('scrollTopBtn').addEventListener('click', () => window.scrollTo({ top:0, behavior:'smooth' }));
-  document.getElementById('dateInfoBtn').addEventListener('click', () => showToast('Sun 31 May 2026'));
+
+  function formatDashboardDate(date = new Date(), includeTime = false) {
+    return new Intl.DateTimeFormat('en-IN', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      ...(includeTime ? { hour: '2-digit', minute: '2-digit' } : {})
+    }).format(date);
+  }
+
+  function updateDateInfo() {
+    const el = document.getElementById('dateInfoBtn');
+    if (el) el.innerHTML = `${formatDashboardDate(new Date(), true)} &nbsp;·&nbsp; n8n Active`;
+  }
+
+  updateDateInfo();
+  setInterval(updateDateInfo, 60000);
+  document.getElementById('dateInfoBtn')?.addEventListener('click', () => showToast(formatDashboardDate(new Date(), true)));
 
   // INIT
   const savedUrl = getSavedWebhookUrl();
@@ -2108,15 +2128,43 @@
   const notifBtn = document.getElementById('notifBtn');
   const notifPanel = document.getElementById('notifPanel');
   const closeNotif = document.getElementById('closeNotif');
+  const notifCount = document.getElementById('notifCount');
+  const feedBadge = document.getElementById('feedBadge');
   const panelOverlay = document.getElementById('panelOverlay');
   const settingsPanel = document.getElementById('settingsPanel');
   const closeSettings = document.getElementById('closeSettings');
+
+  function setBadgeValue(el, count) {
+    if (!el) return;
+    el.textContent = String(count);
+    el.classList.toggle('hidden', count <= 0);
+  }
+
+  function unreadNotificationCount() {
+    return document.querySelectorAll('#notifList .notif-item.unread').length;
+  }
+
+  function refreshNotificationBadges() {
+    const count = unreadNotificationCount();
+    setBadgeValue(notifCount, count);
+    setBadgeValue(feedBadge, count);
+  }
+
+  function markNotificationsRead() {
+    document.querySelectorAll('#notifList .notif-item.unread').forEach(item => {
+      item.classList.remove('unread');
+      const dot = item.querySelector('.notif-dot');
+      if (dot) dot.style.cssText = 'background:transparent;border:1px solid var(--border-2)';
+    });
+    refreshNotificationBadges();
+  }
 
   function openPanel(panel) {
     notifPanel.classList.add('hidden');
     settingsPanel.classList.add('hidden');
     panel.classList.remove('hidden');
     panelOverlay.classList.remove('hidden');
+    if (panel === notifPanel) markNotificationsRead();
   }
   function closeAllPanels() {
     notifPanel.classList.add('hidden');
@@ -2158,22 +2206,35 @@
 
   // Clear notifications
   document.getElementById('clearNotifs')?.addEventListener('click', () => {
-    document.getElementById('notifList').innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No notifications</div>';
-    const nc = document.getElementById('notifCount');
-    if (nc) nc.textContent = '0';
+    document.getElementById('notifList').innerHTML = '<div data-empty-notifications style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No notifications</div>';
+    refreshNotificationBadges();
     showToast('Notifications cleared');
   });
 
   // Add notification helper
   function addNotification(title, body) {
     const list = document.getElementById('notifList');
+    const emptyState = list.querySelector('[data-empty-notifications]');
+    if (emptyState) emptyState.remove();
     const item = document.createElement('div');
     item.className = 'notif-item unread';
     item.innerHTML = `<div class="notif-dot"></div><div><div class="notif-title">${title}</div><div class="meta">${body} · just now</div></div>`;
+    item.addEventListener('click', () => removeNotificationItem(item));
     list.prepend(item);
-    const nc = document.getElementById('notifCount');
-    if (nc) nc.textContent = String(Number(nc.textContent||0)+1);
+    if (notifPanel && !notifPanel.classList.contains('hidden')) markNotificationsRead();
+    else refreshNotificationBadges();
   }
+
+  function removeNotificationItem(item) {
+    item.remove();
+    if (!document.querySelector('#notifList .notif-item')) {
+      document.getElementById('notifList').innerHTML = '<div data-empty-notifications style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No notifications</div>';
+    }
+    refreshNotificationBadges();
+  }
+
+  document.querySelectorAll('#notifList .notif-item').forEach(item => item.addEventListener('click', () => removeNotificationItem(item)));
+  refreshNotificationBadges();
 
   // Add Client button
   document.getElementById('addClientBtn')?.addEventListener('click', () => {
