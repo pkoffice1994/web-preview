@@ -1799,9 +1799,10 @@
     const headerIndex = parsed.findIndex(row => row.some(cell => ['comapny_name', 'companyName', 'ownerName'].includes(String(cell).trim())));
     if (headerIndex === -1) throw new Error('CSV headers were not found');
     const headers = parsed[headerIndex].map(header => String(header).trim());
-    return parsed.slice(headerIndex + 1).map(row => {
+    return parsed.slice(headerIndex + 1).map((row, index) => {
       const data = {};
       headers.forEach((header, index) => { data[header] = row[index] ?? ''; });
+      data.__rowNumber = headerIndex + index + 2;
       return data;
     });
   }
@@ -1849,7 +1850,7 @@
       let totalLeads = 0, activeProjects = 0;
       const syncedLeads = [];
       rows.forEach((row, index) => {
-        const lead = normalizeLeadData(row, index + 2);
+        const lead = normalizeLeadData(row, row.__rowNumber || index + 2);
         if (!lead.companyName) return;
         totalLeads++;
         if (lead.workStatus === 'In Progress') activeProjects++;
@@ -1916,7 +1917,7 @@
     const webhookUrl = String(fd.get('n8nWebhookUrl')||'').trim();
     const submittedAt = new Date().toISOString();
     const lastFollowUpDate = toDateInputValue(new Date());
-    const payload = { companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
+    const payload = { action: 'new_lead', companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
     const tableLead = { companyName, leadNote, serviceType, leadSource, budget, leadStatus, clientEmail, clientPhone, assignedTo, nextFollowUpDate };
     saveWebhookUrl(webhookUrl);
     if (webhookUrl) {
@@ -1947,7 +1948,7 @@
         const url = getSavedWebhookUrl();
         if (!url) { updateWebhookStatus('Add webhook URL in New Lead first', 'warning'); showToast('Webhook URL missing'); return; }
         try {
-          await sendLeadToWebhook({ ping:true, source:'dashboard-test', submittedAt: new Date().toISOString() }, url);
+          await sendLeadToWebhook({ action:'ping', ping:true, source:'dashboard-test', submittedAt: new Date().toISOString() }, url);
           updateWebhookStatus(`Test OK · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`, 'success');
           appendFeedItem('Webhook tested', 'Dashboard reached n8n successfully');
         } catch(e) { updateWebhookStatus(`Test failed: ${e.message}`, 'error'); showToast('Webhook test failed'); return; }
@@ -2072,6 +2073,7 @@
       analystNotes: document.getElementById('apNotes').value,
       workStatus: 'New Lead',
       workCompletedPercent: 0,
+      lastFollowUpDate: new Date().toISOString().slice(0,10),
       leadNote: document.getElementById('apNotes').value || 'New project from existing client',
       submittedAt: new Date().toISOString()
     };
