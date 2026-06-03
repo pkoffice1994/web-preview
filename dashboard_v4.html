@@ -1393,8 +1393,8 @@
     <div class="settings-section">
       <div class="settings-label">Google Sheets</div>
       <div class="field" style="margin-top:8px">
-        <label>Sheet ID</label>
-        <input id="settingsSheetId" placeholder="1m9BVd53DsJWyupmNNx1..." />
+        <label>Sheet ID or Published URL</label>
+        <input id="settingsSheetId" placeholder="Paste Sheet ID or published CSV/HTML URL" />
       </div>
       <div class="field" style="margin-top:8px">
         <label>Sheet Tab Name</label>
@@ -1759,7 +1759,60 @@
     });
   }
 
-  async function fetchSheetJson(sheetId, sheetName) {
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], cell = '', insideQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const next = text[i + 1];
+      if (char === '"' && insideQuotes && next === '"') { cell += '"'; i++; continue; }
+      if (char === '"') { insideQuotes = !insideQuotes; continue; }
+      if (char === ',' && !insideQuotes) { row.push(cell); cell = ''; continue; }
+      if ((char === '\n' || char === '\r') && !insideQuotes) {
+        if (char === '\r' && next === '\n') i++;
+        row.push(cell);
+        if (row.some(value => String(value).trim() !== '')) rows.push(row);
+        row = []; cell = '';
+        continue;
+      }
+      cell += char;
+    }
+    row.push(cell);
+    if (row.some(value => String(value).trim() !== '')) rows.push(row);
+    return rows;
+  }
+
+  function toPublishedCsvUrl(source) {
+    const url = new URL(source);
+    url.pathname = url.pathname.replace('/pubhtml', '/pub');
+    url.searchParams.set('output', 'csv');
+    return url.toString();
+  }
+
+  function extractSheetId(source) {
+    const match = String(source).match(/\/spreadsheets\/d\/([^/]+)/);
+    return match ? match[1] : source;
+  }
+
+  function csvToDataRows(text) {
+    const parsed = parseCsv(text);
+    const headerIndex = parsed.findIndex(row => row.some(cell => ['comapny_name', 'companyName', 'ownerName'].includes(String(cell).trim())));
+    if (headerIndex === -1) throw new Error('CSV headers were not found');
+    const headers = parsed[headerIndex].map(header => String(header).trim());
+    return parsed.slice(headerIndex + 1).map(row => {
+      const data = {};
+      headers.forEach((header, index) => { data[header] = row[index] ?? ''; });
+      return data;
+    });
+  }
+
+  async function fetchSheetRows(source, sheetName) {
+    if (/^https?:\/\//i.test(source) && source.includes('/spreadsheets/d/e/')) {
+      const res = await fetch(toPublishedCsvUrl(source));
+      if (!res.ok) throw new Error(`Published Sheet HTTP ${res.status}`);
+      return csvToDataRows(await res.text());
+    }
+    const sheetId = extractSheetId(source);
     const baseUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
     const urls = [
       `${baseUrl}&sheet=${encodeURIComponent(sheetName || 'Sheet5')}`,
@@ -1773,7 +1826,13 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/);
         if (!match) throw new Error('Google Sheet response is not readable');
-        return JSON.parse(match[1]);
+        const json = JSON.parse(match[1]);
+        const cols = json.table.cols.map(c => c.label);
+        return json.table.rows.map(row => {
+          const data = {};
+          cols.forEach((col, i) => { data[col] = row.c[i]?.v ?? ''; });
+          return data;
+        });
       } catch (error) {
         lastError = error;
       }
@@ -1785,16 +1844,12 @@
     if (!sheetId) return;
     const activeSheetName = sheetName || 'Sheet5';
     try {
-      const json = await fetchSheetJson(sheetId, activeSheetName);
-      const rows = json.table.rows;
-      const cols = json.table.cols.map(c => c.label);
+      const rows = await fetchSheetRows(sheetId, activeSheetName);
       leadTableBody.innerHTML = '';
       let totalLeads = 0, activeProjects = 0;
       const syncedLeads = [];
       rows.forEach((row, index) => {
-        const data = {};
-        cols.forEach((col, i) => { data[col] = row.c[i]?.v ?? ''; });
-        const lead = normalizeLeadData(data, index + 2);
+        const lead = normalizeLeadData(row, index + 2);
         if (!lead.companyName) return;
         totalLeads++;
         if (lead.workStatus === 'In Progress') activeProjects++;
