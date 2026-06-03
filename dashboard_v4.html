@@ -2019,6 +2019,7 @@
     const t = new Date(); t.setDate(t.getDate()+7);
     document.getElementById('uwNextFollowUp').value = t.toISOString().slice(0,10);
     document.getElementById('uwStatus').textContent = 'Updates will be sent to Google Sheet via n8n webhook.';
+    document.getElementById('uwStatus').style.color = '';
     document.getElementById('updateWorkModal').classList.remove('hidden');
   }
   document.getElementById('cancelUpdateWork').addEventListener('click', () => {
@@ -2040,6 +2041,7 @@
     };
     const url = getSavedWebhookUrl();
     document.getElementById('uwStatus').textContent = 'Saving...';
+    document.getElementById('uwStatus').style.color = '';
     if (url) {
       try {
         await sendLeadToWebhook(payload, url);
