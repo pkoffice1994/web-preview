@@ -1754,6 +1754,14 @@
     try { return await res.json(); } catch { return null; }
   }
 
+  async function sendDashboardWebhook(payload, url) {
+    if (isCloudWebhookUrl(url)) {
+      await sendLeadViaBrowserForm(payload, url);
+      return { ok: true, mode: 'cloud-form' };
+    }
+    return sendLeadToWebhook(payload, url);
+  }
+
   function createRequestId(prefix) {
     const random = Math.random().toString(36).slice(2, 10);
     return `${prefix}-${Date.now()}-${random}`;
@@ -1940,17 +1948,11 @@
     if (webhookUrl) {
       setLeadFormStatus('Sending to n8n...', 'warning');
       try {
-        const result = await sendLeadToWebhook(payload, webhookUrl);
+        const result = await sendDashboardWebhook(payload, webhookUrl);
         updateWebhookStatus(`Connected · ${webhookUrl}`, 'success');
         appendLeadToTable(tableLead); appendFeedItem('Lead sent to n8n', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
         incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent to n8n`); return;
       } catch(error) {
-        if (isCloudWebhookUrl(webhookUrl)) {
-          updateWebhookStatus(`Error: ${error.message}`, 'error');
-          setLeadFormStatus(`Failed: ${error.message}`, 'error');
-          showToast('Webhook failed');
-          return;
-        }
         setLeadFormStatus('Trying browser fallback...', 'warning');
         try {
           await sendLeadViaBrowserForm(payload, webhookUrl);
@@ -1971,7 +1973,7 @@
         const url = getSavedWebhookUrl();
         if (!url) { updateWebhookStatus('Add webhook URL in New Lead first', 'warning'); showToast('Webhook URL missing'); return; }
         try {
-          await sendLeadToWebhook({ action:'ping', ping:true, source:'dashboard-test', submittedAt: new Date().toISOString() }, url);
+          await sendDashboardWebhook({ action:'ping', ping:true, source:'dashboard-test', submittedAt: new Date().toISOString() }, url);
           updateWebhookStatus(`Test OK · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`, 'success');
           appendFeedItem('Webhook tested', 'Dashboard reached n8n successfully');
         } catch(e) { updateWebhookStatus(`Test failed: ${e.message}`, 'error'); showToast('Webhook test failed'); return; }
@@ -2064,7 +2066,7 @@
     document.getElementById('uwStatus').style.color = '';
     if (url) {
       try {
-        await sendLeadToWebhook(payload, url);
+        await sendDashboardWebhook(payload, url);
         document.getElementById('uwStatus').textContent = '✓ Updated in Google Sheet!';
         document.getElementById('uwStatus').style.color = 'var(--green)';
         appendFeedItem('Work updated — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}% · Status: ${payload.workStatus} · Assigned: ${payload.assignedTo}`);
@@ -2124,7 +2126,7 @@
     document.getElementById('apStatus').textContent = 'Adding project...';
     if (url) {
       try {
-        await sendLeadToWebhook(payload, url);
+        await sendDashboardWebhook(payload, url);
         document.getElementById('apStatus').textContent = '✓ Project added to Google Sheet!';
         document.getElementById('apStatus').style.color = 'var(--green)';
         appendLeadToTable({ companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate });
