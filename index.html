@@ -1512,6 +1512,7 @@
   const STORAGE_KEY_SHEET = 'kriscent-sheet-id';
   const STORAGE_KEY_SHEET_TAB = 'kriscent-sheet-tab-name';
   const LOCAL_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook/collect-requirement';
+  const CLOUD_WEBHOOK_URL = 'https://pawankumar1234.app.n8n.cloud/webhook/collect-requirement';
 
   function getSavedSheetId() { return window.localStorage.getItem(STORAGE_KEY_SHEET) || ''; }
   function saveSheetId(id) { if (id) window.localStorage.setItem(STORAGE_KEY_SHEET, id); }
@@ -1553,6 +1554,15 @@
   function getSavedWebhookUrl() { try { return window.localStorage.getItem(STORAGE_KEY_WEBHOOK) || ''; } catch { return ''; } }
   function saveWebhookUrl(url) { try { url ? window.localStorage.setItem(STORAGE_KEY_WEBHOOK, url) : window.localStorage.removeItem(STORAGE_KEY_WEBHOOK); } catch {} }
   function isLocalDashboard() { return ['127.0.0.1', 'localhost', ''].includes(window.location.hostname); }
+  function isLocalWebhookUrl(url) { return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(String(url || '').trim()); }
+  function getDefaultWebhookUrl() { return isLocalDashboard() ? LOCAL_WEBHOOK_URL : CLOUD_WEBHOOK_URL; }
+  function getActiveWebhookUrl() {
+    const saved = getSavedWebhookUrl();
+    if (saved && !(isLocalWebhookUrl(saved) && !isLocalDashboard())) return saved;
+    const fallback = getDefaultWebhookUrl();
+    saveWebhookUrl(fallback);
+    return fallback;
+  }
 
   function updateWebhookStatus(text, tone) {
     webhookStatusText.textContent = text;
@@ -1570,9 +1580,8 @@
   function toDateInputValue(date) { return date.toISOString().slice(0, 10); }
 
   function openLeadModal() {
-    n8nWebhookUrlInput.value = getSavedWebhookUrl();
+    n8nWebhookUrlInput.value = getActiveWebhookUrl();
     setLeadFormStatus('Send real lead data to your n8n webhook, or save locally.');
-    if (!n8nWebhookUrlInput.value && isLocalDashboard()) n8nWebhookUrlInput.value = LOCAL_WEBHOOK_URL;
     const nfd = document.getElementById('nextFollowUpDate');
     if (nfd && !nfd.value) { const t = new Date(); t.setDate(t.getDate()+1); nfd.value = toDateInputValue(t); }
     leadModal.classList.remove('hidden');
@@ -1991,10 +2000,8 @@
   document.getElementById('dateInfoBtn')?.addEventListener('click', () => showToast(formatDashboardDate(new Date(), true)));
 
   // INIT
-  const savedUrl = getSavedWebhookUrl();
-  if (savedUrl) { updateWebhookStatus(`Connected · ${savedUrl}`, 'success'); }
-  else if (isLocalDashboard()) { saveWebhookUrl(LOCAL_WEBHOOK_URL); updateWebhookStatus('Connected · local webhook/collect-requirement', 'success'); }
-  else { updateWebhookStatus('Add production n8n webhook URL', 'warning'); }
+  const savedUrl = getActiveWebhookUrl();
+  updateWebhookStatus(`Connected · ${savedUrl}`, 'success');
 
   const savedSheetId = getSavedSheetId();
   if (savedSheetId) {
@@ -2007,7 +2014,7 @@
 
   // Pre-fill settings webhook
   const swu = document.getElementById('settingsWebhookUrl');
-  if (swu) swu.value = getSavedWebhookUrl();
+  if (swu) swu.value = getActiveWebhookUrl();
 
   // UPDATE WORK MODAL
   let _uwCompany = '', _uwRow = '';
@@ -2185,8 +2192,9 @@
   // Save webhook from settings
   document.getElementById('saveWebhookBtn')?.addEventListener('click', () => {
     const url = document.getElementById('settingsWebhookUrl').value.trim();
-    saveWebhookUrl(url);
-    updateWebhookStatus(`Connected · ${url}`, 'success');
+    const finalUrl = url || getDefaultWebhookUrl();
+    saveWebhookUrl(finalUrl);
+    updateWebhookStatus(`Connected · ${finalUrl}`, 'success');
     showToast('Webhook saved ✓');
   });
 
