@@ -1555,6 +1555,7 @@
   function saveWebhookUrl(url) { try { url ? window.localStorage.setItem(STORAGE_KEY_WEBHOOK, url) : window.localStorage.removeItem(STORAGE_KEY_WEBHOOK); } catch {} }
   function isLocalDashboard() { return ['127.0.0.1', 'localhost', ''].includes(window.location.hostname); }
   function isLocalWebhookUrl(url) { return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(String(url || '').trim()); }
+  function isCloudWebhookUrl(url) { return String(url || '').includes('app.n8n.cloud'); }
   function getDefaultWebhookUrl() { return isLocalDashboard() ? LOCAL_WEBHOOK_URL : CLOUD_WEBHOOK_URL; }
   function getActiveWebhookUrl() {
     const saved = getSavedWebhookUrl();
@@ -1753,6 +1754,11 @@
     try { return await res.json(); } catch { return null; }
   }
 
+  function createRequestId(prefix) {
+    const random = Math.random().toString(36).slice(2, 10);
+    return `${prefix}-${Date.now()}-${random}`;
+  }
+
   function sendLeadViaBrowserForm(payload, webhookUrl) {
     return new Promise((resolve, reject) => {
       try {
@@ -1928,7 +1934,7 @@
     const webhookUrl = String(fd.get('n8nWebhookUrl')||'').trim();
     const submittedAt = new Date().toISOString();
     const lastFollowUpDate = toDateInputValue(new Date());
-    const payload = { action: 'new_lead', companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
+    const payload = { requestId: createRequestId('lead'), action: 'new_lead', companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
     const tableLead = { companyName, leadNote, serviceType, leadSource, budget, leadStatus, clientEmail, clientPhone, assignedTo, nextFollowUpDate };
     saveWebhookUrl(webhookUrl);
     if (webhookUrl) {
@@ -1939,6 +1945,12 @@
         appendLeadToTable(tableLead); appendFeedItem('Lead sent to n8n', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
         incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent to n8n`); return;
       } catch(error) {
+        if (isCloudWebhookUrl(webhookUrl)) {
+          updateWebhookStatus(`Error: ${error.message}`, 'error');
+          setLeadFormStatus(`Failed: ${error.message}`, 'error');
+          showToast('Webhook failed');
+          return;
+        }
         setLeadFormStatus('Trying browser fallback...', 'warning');
         try {
           await sendLeadViaBrowserForm(payload, webhookUrl);
@@ -2034,6 +2046,7 @@
   });
   document.getElementById('saveUpdateWork').addEventListener('click', async () => {
     const payload = {
+      requestId: createRequestId('work'),
       action: 'update_work',
       companyName: _uwCompany,
       row_number: _uwRow,
@@ -2090,6 +2103,7 @@
   });
   document.getElementById('saveAddProject').addEventListener('click', async () => {
     const payload = {
+      requestId: createRequestId('project'),
       action: 'add_project',
       companyName: _apCompany,
       ownerName: _apCompany,
