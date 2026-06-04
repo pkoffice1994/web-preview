@@ -1544,6 +1544,10 @@
     month: { stats: ['186', '26', '$74k', '$212k'], sub: ['34 qualified this month', '8 new starts approved', '11 open invoices', 'Monthly target exceeded'] },
     quarter: { stats: ['514', '41', '$168k', '$618k'], sub: ['Pipeline up 22%', '12 enterprise accounts', '19 milestone collections due', 'Quarter on track'] }
   };
+  let liveLeads = [];
+  let isLeadSubmitting = false;
+  let isWorkSubmitting = false;
+  let isProjectSubmitting = false;
 
   function showToast(msg) {
     toast.textContent = msg; toast.classList.remove('hidden');
@@ -1734,6 +1738,17 @@
     });
   }
 
+  function refreshLeadDirectories() {
+    renderClientCards(liveLeads);
+    renderAnalystCards(liveLeads);
+  }
+
+  function addLeadToDirectories(lead) {
+    const normalized = normalizeLeadData(lead, lead.rowNumber || '');
+    liveLeads = [normalized, ...liveLeads.filter(item => item.companyName !== normalized.companyName)];
+    refreshLeadDirectories();
+  }
+
   function appendFeedItem(title, body) {
     const el = document.createElement('div'); el.className = 'feed-item';
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1882,8 +1897,8 @@
         syncedLeads.push(lead);
         appendLeadToTable(lead);
       });
-      renderClientCards(syncedLeads);
-      renderAnalystCards(syncedLeads);
+      liveLeads = syncedLeads;
+      refreshLeadDirectories();
       const vals = document.querySelectorAll('.stat-value');
       if (vals[0]) vals[0].textContent = totalLeads;
       if (vals[1]) vals[1].textContent = activeProjects;
@@ -1924,6 +1939,8 @@
 
   leadForm.addEventListener('submit', async e => {
     e.preventDefault();
+    if (isLeadSubmitting) return;
+    isLeadSubmitting = true;
     const fd = new FormData(leadForm);
     const companyName = fd.get('companyName').trim();
     const ownerName = fd.get('ownerName').trim();
@@ -1950,20 +1967,20 @@
       try {
         const result = await sendDashboardWebhook(payload, webhookUrl);
         updateWebhookStatus(`Connected · ${webhookUrl}`, 'success');
-        appendLeadToTable(tableLead); appendFeedItem('Lead sent to n8n', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
-        incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent to n8n`); return;
+        appendLeadToTable(tableLead); addLeadToDirectories({ ...payload, budget, rowNumber: '' }); appendFeedItem('Lead sent to n8n', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
+        incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent to n8n`); isLeadSubmitting = false; return;
       } catch(error) {
         setLeadFormStatus('Trying browser fallback...', 'warning');
         try {
           await sendLeadViaBrowserForm(payload, webhookUrl);
           updateWebhookStatus(`Connected via fallback`, 'success');
-          appendLeadToTable(tableLead); appendFeedItem('Lead sent', `${companyName} via browser fallback · Assigned: ${assignedTo}`);
-          incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent`); return;
-        } catch(fe) { updateWebhookStatus(`Error: ${fe.message || error.message}`, 'error'); setLeadFormStatus(`Failed: ${fe.message || error.message}`, 'error'); showToast('Webhook failed'); return; }
+          appendLeadToTable(tableLead); addLeadToDirectories({ ...payload, budget, rowNumber: '' }); appendFeedItem('Lead sent', `${companyName} via browser fallback · Assigned: ${assignedTo}`);
+          incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent`); isLeadSubmitting = false; return;
+        } catch(fe) { updateWebhookStatus(`Error: ${fe.message || error.message}`, 'error'); setLeadFormStatus(`Failed: ${fe.message || error.message}`, 'error'); showToast('Webhook failed'); isLeadSubmitting = false; return; }
       }
     }
-    appendLeadToTable(tableLead); appendFeedItem('Lead added locally', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
-    incrementLeadCount(); updateWebhookStatus('No webhook configured', 'warning'); closeLeadModal(); showToast(`${companyName} saved locally`);
+    appendLeadToTable(tableLead); addLeadToDirectories({ ...payload, budget, rowNumber: '' }); appendFeedItem('Lead added locally', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
+    incrementLeadCount(); updateWebhookStatus('No webhook configured', 'warning'); closeLeadModal(); showToast(`${companyName} saved locally`); isLeadSubmitting = false;
   });
 
   document.querySelectorAll('[data-action]').forEach(btn => {
@@ -2047,6 +2064,8 @@
     document.getElementById('updateWorkModal').classList.add('hidden');
   });
   document.getElementById('saveUpdateWork').addEventListener('click', async () => {
+    if (isWorkSubmitting) return;
+    isWorkSubmitting = true;
     const payload = {
       requestId: createRequestId('work'),
       action: 'update_work',
@@ -2072,12 +2091,14 @@
         appendFeedItem('Work updated — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}% · Status: ${payload.workStatus} · Assigned: ${payload.assignedTo}`);
         addNotification('Work updated — ' + _uwCompany, `${payload.workCompletedPercent}% · ${payload.workStatus}`);
         showToast(_uwCompany + ' updated ✓');
+        isWorkSubmitting = false;
         setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1200);
       } catch(e) {
         document.getElementById('uwStatus').textContent = 'Webhook failed — saved locally only';
         document.getElementById('uwStatus').style.color = 'var(--red)';
         appendFeedItem('Work updated (local) — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}%`);
         showToast(_uwCompany + ' saved locally');
+        isWorkSubmitting = false;
         setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1500);
       }
     } else {
@@ -2085,6 +2106,7 @@
       document.getElementById('uwStatus').style.color = 'var(--amber)';
       appendFeedItem('Work updated (local) — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}%`);
       showToast('Saved locally — no webhook set');
+      isWorkSubmitting = false;
       setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1500);
     }
   });
@@ -2104,6 +2126,8 @@
     document.getElementById('addProjectModal').classList.add('hidden');
   });
   document.getElementById('saveAddProject').addEventListener('click', async () => {
+    if (isProjectSubmitting) return;
+    isProjectSubmitting = true;
     const payload = {
       requestId: createRequestId('project'),
       action: 'add_project',
@@ -2129,24 +2153,30 @@
         await sendDashboardWebhook(payload, url);
         document.getElementById('apStatus').textContent = '✓ Project added to Google Sheet!';
         document.getElementById('apStatus').style.color = 'var(--green)';
-        appendLeadToTable({ companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate });
+        const projectLead = { companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate, workStatus: payload.workStatus, workCompletedPercent: payload.workCompletedPercent };
+        appendLeadToTable(projectLead); addLeadToDirectories(projectLead);
         appendFeedItem('New project — ' + _apCompany, `${payload.serviceType} · $${payload.budget} · Assigned: ${payload.assignedTo}`);
         addNotification('New project added — ' + _apCompany, payload.serviceType + ' · $' + payload.budget);
         incrementLeadCount();
         showToast('Project added for ' + _apCompany + ' ✓');
+        isProjectSubmitting = false;
         setTimeout(() => document.getElementById('addProjectModal').classList.add('hidden'), 1200);
       } catch(e) {
         document.getElementById('apStatus').textContent = 'Webhook failed — added locally only';
         document.getElementById('apStatus').style.color = 'var(--red)';
-        appendLeadToTable({ companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate });
+        const projectLead = { companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate, workStatus: payload.workStatus, workCompletedPercent: payload.workCompletedPercent };
+        appendLeadToTable(projectLead); addLeadToDirectories(projectLead);
         showToast('Added locally — webhook failed');
+        isProjectSubmitting = false;
         setTimeout(() => document.getElementById('addProjectModal').classList.add('hidden'), 1500);
       }
     } else {
       document.getElementById('apStatus').textContent = '⚠ No webhook — add URL in Settings';
       document.getElementById('apStatus').style.color = 'var(--amber)';
-      appendLeadToTable({ companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate });
+      const projectLead = { companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate, workStatus: payload.workStatus, workCompletedPercent: payload.workCompletedPercent };
+      appendLeadToTable(projectLead); addLeadToDirectories(projectLead);
       showToast('Added locally — no webhook set');
+      isProjectSubmitting = false;
       setTimeout(() => document.getElementById('addProjectModal').classList.add('hidden'), 1500);
     }
   });
