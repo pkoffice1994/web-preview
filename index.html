@@ -255,6 +255,15 @@
     .invoice-item:last-child { border-bottom: none; }
     .invoice-item h4 { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
     .inv-amount { font-size: 14px; font-weight: 600; font-family: 'DM Mono'; color: var(--ink); margin-bottom: 6px; text-align: right; }
+    .invoice-mini {
+      margin-top: 8px; border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface-2); overflow: hidden;
+    }
+    .invoice-mini-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-bottom: 1px solid var(--border);
+    }
+    .invoice-mini-row:last-child { border-bottom: none; }
 
     /* FEED */
     .feed { display: flex; flex-direction: column; }
@@ -365,6 +374,22 @@
     .cmeta-row span:last-child { font-weight: 500; }
     .progress-wrap {}
     .client-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid var(--border); }
+    .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; }
+    .profile-stat {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px;
+    }
+    .profile-stat span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+    .profile-stat strong { font-size: 17px; font-weight: 600; }
+    .profile-section {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px; margin-top: 12px;
+    }
+    .profile-section h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .profile-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+    .profile-row:last-child { border-bottom: none; }
+    .profile-row span:first-child { color: var(--muted); }
+    .profile-row span:last-child { color: var(--ink); text-align: right; }
 
     /* ANALYST CARDS */
     .analyst-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
@@ -940,7 +965,7 @@
               <p>Open billing across active projects</p>
             </div>
           </div>
-          <div class="invoice-list">
+          <div class="invoice-list" id="invoiceList">
             <div class="invoice-item">
               <div>
                 <h4>INV-24051 · ScaleStack</h4>
@@ -1329,6 +1354,20 @@
   </div>
 </div>
 
+<!-- CLIENT PROFILE MODAL -->
+<div class="modal-backdrop hidden" id="clientProfileModal">
+  <div class="modal" style="width:680px">
+    <h3 id="clientProfileTitle">Client Profile</h3>
+    <p id="clientProfileSubtitle" style="color:var(--muted);font-size:13px;margin-bottom:20px"></p>
+    <div id="clientProfileBody"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="closeClientProfileBtn">Close</button>
+      <button type="button" class="btn-cancel" id="profileAddProjectBtn">+ Project</button>
+      <button type="button" class="btn-primary" id="profileUpdateWorkBtn">Update Work</button>
+    </div>
+  </div>
+</div>
+
 <!-- NOTIFICATIONS PANEL -->
 <div class="side-panel hidden" id="notifPanel">
   <div class="panel-head">
@@ -1526,8 +1565,16 @@
   const leadForm = document.getElementById('leadForm');
   const leadTableBody = document.getElementById('leadTableBody');
   const clientGrid = document.getElementById('clientGrid');
+  const invoiceList = document.getElementById('invoiceList');
   const analystGrid = document.querySelector('.analyst-grid');
   const workFeed = document.getElementById('workFeed');
+  const clientProfileModal = document.getElementById('clientProfileModal');
+  const clientProfileTitle = document.getElementById('clientProfileTitle');
+  const clientProfileSubtitle = document.getElementById('clientProfileSubtitle');
+  const clientProfileBody = document.getElementById('clientProfileBody');
+  const closeClientProfileBtn = document.getElementById('closeClientProfileBtn');
+  const profileAddProjectBtn = document.getElementById('profileAddProjectBtn');
+  const profileUpdateWorkBtn = document.getElementById('profileUpdateWorkBtn');
   const toast = document.getElementById('toast');
   const scrollTopBtn = document.getElementById('scrollTopBtn');
   const settingsBtn = document.getElementById('settingsBtn');
@@ -1626,6 +1673,26 @@
     return fallback;
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[char]));
+  }
+
+  function toMoneyNumber(value) {
+    const n = Number(String(value ?? 0).replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function formatMoney(value) {
+    return '$' + toMoneyNumber(value).toLocaleString('en-US');
+  }
+
+  function invoiceStatusClass(status) {
+    const n = String(status || '').toLowerCase();
+    if (n.includes('paid')) return 's-won';
+    if (n.includes('overdue') || n.includes('pending')) return 's-follow';
+    return 's-new';
+  }
+
   function normalizeLeadData(data, rowNumber = '') {
     const companyName = fieldValue(data, ['companyName', 'comapny_name', 'company_name', 'Company Name', 'company', 'clientName', 'Client']);
     const serviceType = fieldValue(data, ['serviceType', 'Service', 'service', 'Project Type'], 'General Project');
@@ -1636,6 +1703,13 @@
     const nextFollowUpDate = fieldValue(data, ['nextFollowUpDate', 'Next Follow-up', 'next_follow_up', 'nextFollowUpDa'], 'Not set');
     const workStatus = fieldValue(data, ['workStatus', 'Work Status', 'work_status'], 'New Lead');
     const workCompletedPercent = fieldValue(data, ['workCompletedPercent', 'Progress %', 'progress', 'workCompleted'], '0');
+    const invoiceStatus = fieldValue(
+      data,
+      ['invoiceStatus', 'Invoice Status', 'invoice_status', 'paymentStatus', 'Payment Status'],
+      String(leadStatus).toLowerCase() === 'won' || Number(workCompletedPercent) >= 100 ? 'Ready' : 'Draft'
+    );
+    const paidAmount = fieldValue(data, ['paidAmount', 'Paid Amount', 'paid_amount', 'amountPaid', 'Amount Paid'], '0');
+    const invoiceDueDate = fieldValue(data, ['invoiceDueDate', 'Invoice Due', 'invoice_due', 'paymentDueDate', 'Payment Due'], nextFollowUpDate || 'Not set');
     return {
       rowNumber,
       companyName,
@@ -1649,7 +1723,12 @@
       assignedTo,
       nextFollowUpDate,
       workStatus,
-      workCompletedPercent
+      workCompletedPercent,
+      invoiceId: fieldValue(data, ['invoiceId', 'Invoice ID', 'invoice_id'], rowNumber ? `INV-${String(rowNumber).padStart(4, '0')}` : 'INV-DRAFT'),
+      invoiceStatus,
+      paidAmount,
+      invoiceDueDate,
+      analystNotes: fieldValue(data, ['analystNotes', 'Analyst Notes', 'notes'], '')
     };
   }
 
@@ -1672,6 +1751,7 @@
     clientGrid.innerHTML = '';
     leads.slice(0, 12).forEach((lead, index) => {
       const progress = Math.max(0, Math.min(100, Number(lead.workCompletedPercent) || 0));
+      const safeCompany = lead.companyName.replace(/'/g, "\\'");
       const card = document.createElement('div');
       card.className = 'client-card';
       card.innerHTML = `
@@ -1695,12 +1775,97 @@
         <div class="client-foot">
           <span class="meta">${lead.clientEmail || lead.clientPhone || 'No contact added'}</span>
           <div style="display:flex;gap:6px">
-            <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('${lead.companyName.replace(/'/g, "\\'")}','${lead.rowNumber || index + 2}','${progress}')">Update</button>
-            <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('${lead.companyName.replace(/'/g, "\\'")}')">+ Project</button>
+            <button class="qbtn" style="font-size:11px" onclick="openClientProfile('${safeCompany}')">Profile</button>
+            <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('${safeCompany}','${lead.rowNumber || index + 2}','${progress}')">Update</button>
+            <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('${safeCompany}')">+ Project</button>
           </div>
         </div>`;
       clientGrid.appendChild(card);
     });
+  }
+
+  function renderInvoiceList(leads) {
+    if (!invoiceList || !leads.length) return;
+    invoiceList.innerHTML = '';
+    leads.slice(0, 6).forEach((lead, index) => {
+      const budget = toMoneyNumber(lead.budget);
+      const paid = toMoneyNumber(lead.paidAmount);
+      const due = Math.max(0, budget - paid);
+      const status = due <= 0 ? 'Paid' : (lead.invoiceStatus || 'Draft');
+      const item = document.createElement('div');
+      item.className = 'invoice-item';
+      item.innerHTML = `
+        <div>
+          <h4>${escapeHtml(lead.invoiceId || `INV-${index + 1}`)} · ${escapeHtml(lead.companyName)}</h4>
+          <div class="meta">${escapeHtml(lead.serviceType)} · Due ${escapeHtml(lead.invoiceDueDate || 'Not set')}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="inv-amount">${formatMoney(due)}</div>
+          <span class="pill ${invoiceStatusClass(status)}">${escapeHtml(status)}</span>
+        </div>`;
+      invoiceList.appendChild(item);
+    });
+  }
+
+  function findLeadByCompany(companyName) {
+    return liveLeads.find(lead => String(lead.companyName).toLowerCase() === String(companyName).toLowerCase());
+  }
+
+  function renderClientProfile(lead) {
+    if (!lead || !clientProfileBody) return;
+    const progress = Math.max(0, Math.min(100, Number(lead.workCompletedPercent) || 0));
+    const budget = toMoneyNumber(lead.budget);
+    const paid = toMoneyNumber(lead.paidAmount);
+    const pending = Math.max(0, budget - paid);
+    const invoiceStatus = pending <= 0 ? 'Paid' : (lead.invoiceStatus || 'Draft');
+    clientProfileTitle.textContent = lead.companyName || 'Client Profile';
+    clientProfileSubtitle.textContent = `${lead.serviceType || 'Project'} · ${lead.leadSource || 'Dashboard'} · Assigned to ${lead.assignedTo || 'Unassigned'}`;
+    clientProfileBody.innerHTML = `
+      <div class="profile-grid">
+        <div class="profile-stat"><span>Budget</span><strong>${formatMoney(budget)}</strong></div>
+        <div class="profile-stat"><span>Progress</span><strong>${progress}%</strong></div>
+        <div class="profile-stat"><span>Invoice Due</span><strong>${formatMoney(pending)}</strong></div>
+      </div>
+      <div class="profile-section">
+        <h4>Client Workflow</h4>
+        <div class="profile-row"><span>Lead Status</span><span><span class="pill ${statusClass(lead.leadStatus)}">${escapeHtml(lead.leadStatus || 'New')}</span></span></div>
+        <div class="profile-row"><span>Work Status</span><span>${escapeHtml(lead.workStatus || 'New Lead')}</span></div>
+        <div class="profile-row"><span>Next Follow-up</span><span>${escapeHtml(lead.nextFollowUpDate || 'Not set')}</span></div>
+        <div class="profile-row"><span>Contact</span><span>${escapeHtml([lead.clientEmail, lead.clientPhone].filter(Boolean).join(' · ') || 'No contact added')}</span></div>
+      </div>
+      <div class="profile-section">
+        <h4>Invoice Tracking</h4>
+        <div class="invoice-mini">
+          <div class="invoice-mini-row"><span class="meta">Invoice</span><strong>${escapeHtml(lead.invoiceId || 'INV-DRAFT')}</strong></div>
+          <div class="invoice-mini-row"><span class="meta">Paid</span><strong>${formatMoney(paid)}</strong></div>
+          <div class="invoice-mini-row"><span class="meta">Pending</span><strong>${formatMoney(pending)}</strong></div>
+          <div class="invoice-mini-row"><span class="meta">Status</span><span class="pill ${invoiceStatusClass(invoiceStatus)}">${escapeHtml(invoiceStatus)}</span></div>
+        </div>
+      </div>
+      <div class="profile-section">
+        <h4>Notes</h4>
+        <p class="meta" style="line-height:1.6">${escapeHtml(lead.analystNotes || lead.leadNote || 'No analyst notes yet.')}</p>
+      </div>`;
+  }
+
+  function openClientProfile(companyName) {
+    const lead = findLeadByCompany(companyName);
+    if (!lead) { showToast('Client not found yet. Sync sheet first.'); return; }
+    renderClientProfile(lead);
+    if (profileUpdateWorkBtn) profileUpdateWorkBtn.onclick = () => {
+      const progress = Math.max(0, Math.min(100, Number(lead.workCompletedPercent) || 0));
+      closeClientProfile();
+      openUpdateWork(lead.companyName, lead.rowNumber || '', progress);
+    };
+    if (profileAddProjectBtn) profileAddProjectBtn.onclick = () => {
+      closeClientProfile();
+      openAddProject(lead.companyName);
+    };
+    clientProfileModal?.classList.remove('hidden');
+  }
+
+  function closeClientProfile() {
+    clientProfileModal?.classList.add('hidden');
   }
 
   function renderAnalystCards(leads) {
@@ -1740,6 +1905,7 @@
 
   function refreshLeadDirectories() {
     renderClientCards(liveLeads);
+    renderInvoiceList(liveLeads);
     renderAnalystCards(liveLeads);
   }
 
@@ -1936,6 +2102,8 @@
   createLeadBtn.addEventListener('click', openLeadModal);
   cancelLeadBtn.addEventListener('click', closeLeadModal);
   leadModal.addEventListener('click', e => { if (e.target === leadModal) closeLeadModal(); });
+  closeClientProfileBtn?.addEventListener('click', closeClientProfile);
+  clientProfileModal?.addEventListener('click', e => { if (e.target === clientProfileModal) closeClientProfile(); });
 
   leadForm.addEventListener('submit', async e => {
     e.preventDefault();
