@@ -359,21 +359,36 @@
     .hidden { display: none !important; }
 
     /* CLIENT CARDS */
-    .client-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .client-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
     .client-card {
       background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px;
+      border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: 14px;
       transition: border-color 0.2s;
     }
     .client-card:hover { border-color: var(--border-2); }
     .client-head { display: flex; align-items: center; gap: 10px; }
+    .client-head > div:nth-child(2) { flex: 1; min-width: 0; }
     .client-head strong { font-size: 13px; font-weight: 600; display: block; }
+    .project-count {
+      border: 1px solid var(--border-2); background: var(--surface-2); color: var(--muted-2);
+      border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
     .client-meta { display: flex; flex-direction: column; gap: 5px; }
     .cmeta-row { display: flex; justify-content: space-between; font-size: 12px; }
     .cmeta-row span:first-child { color: var(--muted); }
     .cmeta-row span:last-child { font-weight: 500; }
+    .client-projects { display: flex; flex-direction: column; gap: 9px; }
+    .client-project {
+      padding: 12px; border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface-2); display: flex; flex-direction: column; gap: 9px;
+    }
+    .client-project-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .client-project-top strong { font-size: 13px; line-height: 1.35; }
+    .client-project-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--muted-2); font-size: 11px; }
+    .client-project-actions { display: flex; justify-content: flex-end; }
     .progress-wrap {}
-    .client-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; border-top: 1px solid var(--border); }
+    .client-foot { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .client-foot .qbtn { flex: 1; justify-content: center; min-height: 34px; }
     .profile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 18px 0; }
     .profile-stat {
       background: var(--surface-2); border: 1px solid var(--border);
@@ -390,6 +405,14 @@
     .profile-row:last-child { border-bottom: none; }
     .profile-row span:first-child { color: var(--muted); }
     .profile-row span:last-child { color: var(--ink); text-align: right; }
+    .profile-project {
+      border: 1px solid var(--border); background: var(--surface); border-radius: 12px;
+      padding: 12px; margin-top: 9px;
+    }
+    .profile-project:first-of-type { margin-top: 0; }
+    .profile-project-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+    .profile-project-head strong { font-size: 13px; }
+    .profile-project-meta { color: var(--muted-2); font-size: 11px; line-height: 1.5; margin-bottom: 10px; }
 
     /* ANALYST CARDS */
     .analyst-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
@@ -659,6 +682,13 @@
         transition: none !important;
         animation: none !important;
       }
+    }
+    @media (max-width: 1180px) {
+      .client-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .client-grid { grid-template-columns: 1fr; }
+      .client-foot { flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -1260,7 +1290,7 @@
       <div class="field">
         <label>Work Status</label>
         <select id="uwWorkStatus">
-          <option>New Lead</option><option>Contacted</option><option>In Progress</option>
+          <option>New Lead</option><option>Not Started</option><option>Contacted</option><option>In Progress</option>
           <option>Follow-up Due</option><option>Proposal Sent</option><option>Won</option>
           <option>Cold</option><option>Completed</option>
         </select>
@@ -1321,7 +1351,7 @@
       <div class="field">
         <label>Lead Status</label>
         <select id="apLeadStatus">
-          <option>New</option><option>Follow-up</option><option>Won</option>
+          <option>Project</option><option>New</option><option>Follow-up</option><option>Won</option>
         </select>
       </div>
       <div class="field">
@@ -1712,7 +1742,9 @@
     const invoiceDueDate = fieldValue(data, ['invoiceDueDate', 'Invoice Due', 'invoice_due', 'paymentDueDate', 'Payment Due'], nextFollowUpDate || 'Not set');
     return {
       rowNumber,
+      requestId: fieldValue(data, ['requestId', 'Request ID'], ''),
       companyName,
+      ownerName: fieldValue(data, ['ownerName', 'Owner'], assignedTo),
       leadNote: fieldValue(data, ['leadNote', 'Lead Note', 'analystNotes', 'Analyst Notes'], `${workCompletedPercent}% complete`),
       serviceType,
       leadSource,
@@ -1728,7 +1760,8 @@
       invoiceStatus,
       paidAmount,
       invoiceDueDate,
-      analystNotes: fieldValue(data, ['analystNotes', 'Analyst Notes', 'notes'], '')
+      analystNotes: fieldValue(data, ['analystNotes', 'Analyst Notes', 'notes'], ''),
+      submittedAt: fieldValue(data, ['submittedAt', 'Submitted At', 'createdAt'], '')
     };
   }
 
@@ -1749,37 +1782,63 @@
   function renderClientCards(leads) {
     if (!clientGrid || !leads.length) return;
     clientGrid.innerHTML = '';
-    leads.slice(0, 12).forEach((lead, index) => {
-      const progress = Math.max(0, Math.min(100, Number(lead.workCompletedPercent) || 0));
-      const safeCompany = lead.companyName.replace(/'/g, "\\'");
+    const grouped = groupLeadsByCompany(leads);
+    [...grouped.values()].slice(0, 12).forEach(projects => {
+      projects.sort((a, b) => Number(b.rowNumber || 0) - Number(a.rowNumber || 0));
+      const lead = projects[0];
+      const totalBudget = projects.reduce((sum, project) => sum + toMoneyNumber(project.budget), 0);
+      const contact = projects.map(project => project.clientEmail || project.clientPhone).find(Boolean) || 'No contact added';
       const card = document.createElement('div');
       card.className = 'client-card';
+      const projectRows = projects.map((project, projectIndex) => {
+        const progress = Math.max(0, Math.min(100, Number(project.workCompletedPercent) || 0));
+        const workStatus = project.workStatus || (project.leadStatus === 'Project' ? 'Not Started' : 'New Lead');
+        return `
+          <div class="client-project">
+            <div class="client-project-top">
+              <strong>${escapeHtml(project.serviceType || `Project ${projectIndex + 1}`)}</strong>
+              <span class="pill ${statusClass(workStatus)}">${escapeHtml(workStatus)}</span>
+            </div>
+            <div class="client-project-meta">
+              <span>Assigned: ${escapeHtml(project.assignedTo || 'Unassigned')}</span>
+              <span>${formatMoney(project.budget)}</span>
+              <span>Follow-up: ${escapeHtml(project.nextFollowUpDate || 'Not set')}</span>
+            </div>
+            <div class="progress-wrap">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span style="color:var(--muted-2)">${progress}%</span></div>
+              <div class="bar-track"><div class="bar-fill" style="width:${progress}%;background:var(--accent)"></div></div>
+            </div>
+            <div class="client-project-actions">
+              <button class="qbtn" type="button" data-update-project="${projectIndex}">Update this project</button>
+            </div>
+          </div>`;
+      }).join('');
       card.innerHTML = `
         <div class="client-head">
           <div class="avatar ${avatarClass(lead.serviceType)}" style="width:40px;height:40px;font-size:13px">${initials(lead.companyName)}</div>
           <div>
-            <strong>${lead.companyName}</strong>
-            <span class="pill ${statusClass(lead.leadStatus)}" style="margin-left:8px">${lead.leadStatus}</span>
+            <strong>${escapeHtml(lead.companyName)}</strong>
+            <div class="meta">${escapeHtml(contact)}</div>
           </div>
+          <span class="project-count">${projects.length} ${projects.length === 1 ? 'project' : 'projects'}</span>
         </div>
         <div class="client-meta">
-          <div class="cmeta-row"><span>Service</span><span>${lead.serviceType}</span></div>
-          <div class="cmeta-row"><span>Budget</span><span>$${lead.budget || 0}</span></div>
-          <div class="cmeta-row"><span>Assigned</span><span>${lead.assignedTo || 'Unassigned'}</span></div>
-          <div class="cmeta-row"><span>Next Follow-up</span><span>${lead.nextFollowUpDate || 'Not set'}</span></div>
+          <div class="cmeta-row"><span>Total project value</span><span>${formatMoney(totalBudget)}</span></div>
+          <div class="cmeta-row"><span>Client owner</span><span>${escapeHtml(lead.ownerName || lead.assignedTo || 'Unassigned')}</span></div>
         </div>
-        <div class="progress-wrap">
-          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span style="color:var(--muted-2)">${progress}%</span></div>
-          <div class="bar-track"><div class="bar-fill" style="width:${progress}%;background:var(--accent)"></div></div>
-        </div>
+        <div class="client-projects">${projectRows}</div>
         <div class="client-foot">
-          <span class="meta">${lead.clientEmail || lead.clientPhone || 'No contact added'}</span>
-          <div style="display:flex;gap:6px">
-            <button class="qbtn" style="font-size:11px" onclick="openClientProfile('${safeCompany}')">Profile</button>
-            <button class="qbtn" style="font-size:11px" onclick="openUpdateWork('${safeCompany}','${lead.rowNumber || index + 2}','${progress}')">Update</button>
-            <button class="qbtn alt" style="font-size:11px" onclick="openAddProject('${safeCompany}')">+ Project</button>
-          </div>
+          <button class="qbtn" type="button" data-client-profile>Full profile</button>
+          <button class="qbtn alt" type="button" data-add-project>+ Add Project</button>
         </div>`;
+      card.querySelector('[data-client-profile]')?.addEventListener('click', () => openClientProfile(lead.companyName));
+      card.querySelector('[data-add-project]')?.addEventListener('click', () => openAddProject(lead.companyName));
+      card.querySelectorAll('[data-update-project]').forEach(button => {
+        button.addEventListener('click', () => {
+          const project = projects[Number(button.dataset.updateProject)];
+          openUpdateWork(project.companyName, project.rowNumber || '', project.workCompletedPercent || 0);
+        });
+      });
       clientGrid.appendChild(card);
     });
   }
@@ -1807,51 +1866,94 @@
     });
   }
 
-  function findLeadByCompany(companyName) {
-    return liveLeads.find(lead => String(lead.companyName).toLowerCase() === String(companyName).toLowerCase());
+  function companyKey(companyName) {
+    return String(companyName || '').trim().toLowerCase();
   }
 
-  function renderClientProfile(lead) {
+  function groupLeadsByCompany(leads) {
+    return leads.reduce((groups, lead) => {
+      const key = companyKey(lead.companyName);
+      if (!key) return groups;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(lead);
+      return groups;
+    }, new Map());
+  }
+
+  function findProjectsByCompany(companyName) {
+    return liveLeads.filter(lead => companyKey(lead.companyName) === companyKey(companyName));
+  }
+
+  function findLeadByCompany(companyName) {
+    const projects = findProjectsByCompany(companyName);
+    return projects.sort((a, b) => Number(b.rowNumber || 0) - Number(a.rowNumber || 0))[0];
+  }
+
+  function findLeadByRow(rowNumber) {
+    return liveLeads.find(lead => String(lead.rowNumber) === String(rowNumber));
+  }
+
+  function renderClientProfile(lead, projects = [lead]) {
     if (!lead || !clientProfileBody) return;
-    const progress = Math.max(0, Math.min(100, Number(lead.workCompletedPercent) || 0));
-    const budget = toMoneyNumber(lead.budget);
-    const paid = toMoneyNumber(lead.paidAmount);
+    const budget = projects.reduce((sum, project) => sum + toMoneyNumber(project.budget), 0);
+    const paid = projects.reduce((sum, project) => sum + toMoneyNumber(project.paidAmount), 0);
     const pending = Math.max(0, budget - paid);
-    const invoiceStatus = pending <= 0 ? 'Paid' : (lead.invoiceStatus || 'Draft');
+    const averageProgress = projects.length
+      ? Math.round(projects.reduce((sum, project) => sum + Math.max(0, Math.min(100, Number(project.workCompletedPercent) || 0)), 0) / projects.length)
+      : 0;
+    const projectList = projects.map((project, index) => {
+      const progress = Math.max(0, Math.min(100, Number(project.workCompletedPercent) || 0));
+      return `
+        <div class="profile-project">
+          <div class="profile-project-head">
+            <strong>${escapeHtml(project.serviceType || `Project ${index + 1}`)}</strong>
+            <span class="pill ${statusClass(project.workStatus)}">${escapeHtml(project.workStatus || 'Not Started')}</span>
+          </div>
+          <div class="profile-project-meta">Assigned to ${escapeHtml(project.assignedTo || 'Unassigned')} · ${formatMoney(project.budget)} · Follow-up ${escapeHtml(project.nextFollowUpDate || 'Not set')}</div>
+          <div class="progress-wrap">
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:5px"><span style="color:var(--muted)">Progress</span><span>${progress}%</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${progress}%;background:var(--accent)"></div></div>
+          </div>
+          <button class="qbtn" type="button" data-profile-project="${index}" style="margin-top:10px;width:100%;justify-content:center">Update project</button>
+        </div>`;
+    }).join('');
     clientProfileTitle.textContent = lead.companyName || 'Client Profile';
-    clientProfileSubtitle.textContent = `${lead.serviceType || 'Project'} · ${lead.leadSource || 'Dashboard'} · Assigned to ${lead.assignedTo || 'Unassigned'}`;
+    clientProfileSubtitle.textContent = `${projects.length} ${projects.length === 1 ? 'project' : 'projects'} · ${lead.leadSource || 'Dashboard'} · Client owner ${lead.ownerName || lead.assignedTo || 'Unassigned'}`;
     clientProfileBody.innerHTML = `
       <div class="profile-grid">
-        <div class="profile-stat"><span>Budget</span><strong>${formatMoney(budget)}</strong></div>
-        <div class="profile-stat"><span>Progress</span><strong>${progress}%</strong></div>
+        <div class="profile-stat"><span>Total Value</span><strong>${formatMoney(budget)}</strong></div>
+        <div class="profile-stat"><span>Average Progress</span><strong>${averageProgress}%</strong></div>
         <div class="profile-stat"><span>Invoice Due</span><strong>${formatMoney(pending)}</strong></div>
       </div>
       <div class="profile-section">
-        <h4>Client Workflow</h4>
-        <div class="profile-row"><span>Lead Status</span><span><span class="pill ${statusClass(lead.leadStatus)}">${escapeHtml(lead.leadStatus || 'New')}</span></span></div>
-        <div class="profile-row"><span>Work Status</span><span>${escapeHtml(lead.workStatus || 'New Lead')}</span></div>
-        <div class="profile-row"><span>Next Follow-up</span><span>${escapeHtml(lead.nextFollowUpDate || 'Not set')}</span></div>
+        <h4>Client Details</h4>
+        <div class="profile-row"><span>Projects</span><span>${projects.length}</span></div>
+        <div class="profile-row"><span>Client Owner</span><span>${escapeHtml(lead.ownerName || lead.assignedTo || 'Unassigned')}</span></div>
         <div class="profile-row"><span>Contact</span><span>${escapeHtml([lead.clientEmail, lead.clientPhone].filter(Boolean).join(' · ') || 'No contact added')}</span></div>
       </div>
       <div class="profile-section">
-        <h4>Invoice Tracking</h4>
-        <div class="invoice-mini">
-          <div class="invoice-mini-row"><span class="meta">Invoice</span><strong>${escapeHtml(lead.invoiceId || 'INV-DRAFT')}</strong></div>
-          <div class="invoice-mini-row"><span class="meta">Paid</span><strong>${formatMoney(paid)}</strong></div>
-          <div class="invoice-mini-row"><span class="meta">Pending</span><strong>${formatMoney(pending)}</strong></div>
-          <div class="invoice-mini-row"><span class="meta">Status</span><span class="pill ${invoiceStatusClass(invoiceStatus)}">${escapeHtml(invoiceStatus)}</span></div>
-        </div>
+        <h4>Projects</h4>
+        ${projectList}
       </div>
       <div class="profile-section">
         <h4>Notes</h4>
         <p class="meta" style="line-height:1.6">${escapeHtml(lead.analystNotes || lead.leadNote || 'No analyst notes yet.')}</p>
       </div>`;
+    clientProfileBody.querySelectorAll('[data-profile-project]').forEach(button => {
+      button.addEventListener('click', () => {
+        const project = projects[Number(button.dataset.profileProject)];
+        closeClientProfile();
+        openUpdateWork(project.companyName, project.rowNumber || '', project.workCompletedPercent || 0);
+      });
+    });
   }
 
   function openClientProfile(companyName) {
-    const lead = findLeadByCompany(companyName);
+    const projects = findProjectsByCompany(companyName)
+      .sort((a, b) => Number(b.rowNumber || 0) - Number(a.rowNumber || 0));
+    const lead = projects[0];
     if (!lead) { showToast('Client not found yet. Sync sheet first.'); return; }
-    renderClientProfile(lead);
+    renderClientProfile(lead, projects);
     if (profileUpdateWorkBtn) profileUpdateWorkBtn.onclick = () => {
       const progress = Math.max(0, Math.min(100, Number(lead.workCompletedPercent) || 0));
       closeClientProfile();
@@ -1911,7 +2013,12 @@
 
   function addLeadToDirectories(lead) {
     const normalized = normalizeLeadData(lead, lead.rowNumber || '');
-    liveLeads = [normalized, ...liveLeads.filter(item => item.companyName !== normalized.companyName)];
+    const sameRecord = item => {
+      if (normalized.rowNumber) return String(item.rowNumber) === String(normalized.rowNumber);
+      if (normalized.requestId) return item.requestId === normalized.requestId;
+      return false;
+    };
+    liveLeads = [normalized, ...liveLeads.filter(item => !sameRecord(item))];
     refreshLeadDirectories();
   }
 
@@ -2217,13 +2324,34 @@
 
   // UPDATE WORK MODAL
   let _uwCompany = '', _uwRow = '';
+  function setSelectValue(selectId, value, fallback = '') {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    const finalValue = String(value || fallback || '');
+    if (finalValue && ![...select.options].some(option => option.value === finalValue)) {
+      select.add(new Option(finalValue, finalValue));
+    }
+    if (finalValue) select.value = finalValue;
+  }
+
   function openUpdateWork(companyName, rowNum, progress) {
     _uwCompany = companyName; _uwRow = rowNum;
-    document.getElementById('updateWorkClient').textContent = 'Client: ' + companyName;
-    document.getElementById('uwProgress').value = progress || 0;
-    document.getElementById('uwProgressVal').textContent = progress || 0;
+    const existingLead = findLeadByRow(rowNum) || findLeadByCompany(companyName) || {};
+    const currentProgress = Math.max(0, Math.min(100, Number(existingLead.workCompletedPercent ?? progress) || 0));
+    const currentWorkStatus = currentProgress > 0 && existingLead.workStatus === 'New Lead'
+      ? 'In Progress'
+      : (existingLead.workStatus || (existingLead.leadStatus === 'Project' ? 'Not Started' : 'New Lead'));
+    document.getElementById('updateWorkClient').textContent = `Client: ${companyName} · Project: ${existingLead.serviceType || 'General Project'}`;
+    setSelectValue('uwWorkStatus', currentWorkStatus, 'New Lead');
+    setSelectValue('uwLeadStatus', existingLead.leadStatus, 'New');
+    setSelectValue('uwAssignedTo', existingLead.assignedTo, 'Kriscent Team');
+    document.getElementById('uwProgress').value = currentProgress;
+    document.getElementById('uwProgressVal').textContent = currentProgress;
     const t = new Date(); t.setDate(t.getDate()+7);
-    document.getElementById('uwNextFollowUp').value = t.toISOString().slice(0,10);
+    document.getElementById('uwNextFollowUp').value = /^\d{4}-\d{2}-\d{2}$/.test(existingLead.nextFollowUpDate || '')
+      ? existingLead.nextFollowUpDate
+      : t.toISOString().slice(0,10);
+    document.getElementById('uwNotes').value = existingLead.analystNotes || '';
     document.getElementById('uwStatus').textContent = 'Updates will be sent to Google Sheet via n8n webhook.';
     document.getElementById('uwStatus').style.color = '';
     document.getElementById('updateWorkModal').classList.remove('hidden');
@@ -2234,7 +2362,7 @@
   document.getElementById('saveUpdateWork').addEventListener('click', async () => {
     if (isWorkSubmitting) return;
     isWorkSubmitting = true;
-    const existingLead = findLeadByCompany(_uwCompany) || {};
+    const existingLead = findLeadByRow(_uwRow) || findLeadByCompany(_uwCompany) || {};
     const rowNumber = Number(_uwRow);
     const payload = {
       requestId: createRequestId('work'),
@@ -2256,7 +2384,7 @@
       assignedTo: document.getElementById('uwAssignedTo').value,
       analystNotes: document.getElementById('uwNotes').value,
       lastFollowUpDate: new Date().toISOString().slice(0,10),
-      submittedAt: new Date().toISOString()
+      submittedAt: existingLead.submittedAt || new Date().toISOString()
     };
     const url = getSavedWebhookUrl();
     document.getElementById('uwStatus').textContent = 'Saving...';
@@ -2268,6 +2396,8 @@
         document.getElementById('uwStatus').style.color = 'var(--green)';
         appendFeedItem('Work updated — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}% · Status: ${payload.workStatus} · Assigned: ${payload.assignedTo}`);
         addNotification('Work updated — ' + _uwCompany, `${payload.workCompletedPercent}% · ${payload.workStatus}`);
+        Object.assign(existingLead, payload);
+        refreshLeadDirectories();
         showToast(_uwCompany + ' updated ✓');
         isWorkSubmitting = false;
         setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1200);
@@ -2293,7 +2423,11 @@
   let _apCompany = '';
   function openAddProject(companyName) {
     _apCompany = companyName;
+    const existingLead = findLeadByCompany(companyName) || {};
     document.getElementById('addProjectClient').textContent = 'Adding new project for: ' + companyName;
+    setSelectValue('apAssignedTo', existingLead.assignedTo, 'Kriscent Team');
+    setSelectValue('apLeadStatus', 'Project');
+    setSelectValue('apLeadSource', 'Existing Client');
     const t = new Date(); t.setDate(t.getDate()+3);
     document.getElementById('apNextFollowUp').value = t.toISOString().slice(0,10);
     document.getElementById('apStatus').textContent = 'New project will be added as a new row in Google Sheet via n8n.';
@@ -2306,11 +2440,14 @@
   document.getElementById('saveAddProject').addEventListener('click', async () => {
     if (isProjectSubmitting) return;
     isProjectSubmitting = true;
+    const existingLead = findLeadByCompany(_apCompany) || {};
     const payload = {
       requestId: createRequestId('project'),
       action: 'add_project',
       companyName: _apCompany,
-      ownerName: _apCompany,
+      ownerName: existingLead.ownerName || existingLead.assignedTo || '',
+      clientEmail: existingLead.clientEmail || '',
+      clientPhone: existingLead.clientPhone || '',
       serviceType: document.getElementById('apService').value,
       budget: document.getElementById('apBudget').value,
       leadStatus: document.getElementById('apLeadStatus').value,
@@ -2318,7 +2455,7 @@
       assignedTo: document.getElementById('apAssignedTo').value,
       nextFollowUpDate: document.getElementById('apNextFollowUp').value,
       analystNotes: document.getElementById('apNotes').value,
-      workStatus: 'New Lead',
+      workStatus: 'Not Started',
       workCompletedPercent: 0,
       lastFollowUpDate: new Date().toISOString().slice(0,10),
       leadNote: document.getElementById('apNotes').value || 'New project from existing client',
@@ -2331,7 +2468,7 @@
         await sendDashboardWebhook(payload, url);
         document.getElementById('apStatus').textContent = '✓ Project added to Google Sheet!';
         document.getElementById('apStatus').style.color = 'var(--green)';
-        const projectLead = { companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate, workStatus: payload.workStatus, workCompletedPercent: payload.workCompletedPercent };
+        const projectLead = { ...payload, leadNote: payload.analystNotes || 'New project' };
         appendLeadToTable(projectLead); addLeadToDirectories(projectLead);
         appendFeedItem('New project — ' + _apCompany, `${payload.serviceType} · $${payload.budget} · Assigned: ${payload.assignedTo}`);
         addNotification('New project added — ' + _apCompany, payload.serviceType + ' · $' + payload.budget);
@@ -2342,7 +2479,7 @@
       } catch(e) {
         document.getElementById('apStatus').textContent = 'Webhook failed — added locally only';
         document.getElementById('apStatus').style.color = 'var(--red)';
-        const projectLead = { companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate, workStatus: payload.workStatus, workCompletedPercent: payload.workCompletedPercent };
+        const projectLead = { ...payload, leadNote: payload.analystNotes || 'New project' };
         appendLeadToTable(projectLead); addLeadToDirectories(projectLead);
         showToast('Added locally — webhook failed');
         isProjectSubmitting = false;
@@ -2351,7 +2488,7 @@
     } else {
       document.getElementById('apStatus').textContent = '⚠ No webhook — add URL in Settings';
       document.getElementById('apStatus').style.color = 'var(--amber)';
-      const projectLead = { companyName: _apCompany, leadNote: payload.analystNotes || 'New project', serviceType: payload.serviceType, leadSource: payload.leadSource, budget: Number(payload.budget).toLocaleString(), leadStatus: payload.leadStatus, clientEmail:'', clientPhone:'', assignedTo: payload.assignedTo, nextFollowUpDate: payload.nextFollowUpDate, workStatus: payload.workStatus, workCompletedPercent: payload.workCompletedPercent };
+      const projectLead = { ...payload, leadNote: payload.analystNotes || 'New project' };
       appendLeadToTable(projectLead); addLeadToDirectories(projectLead);
       showToast('Added locally — no webhook set');
       isProjectSubmitting = false;
