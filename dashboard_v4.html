@@ -1290,7 +1290,7 @@
       <div class="field">
         <label>Work Status</label>
         <select id="uwWorkStatus">
-          <option>New Lead</option><option>Not Started</option><option>Contacted</option><option>In Progress</option>
+          <option>Not Started</option><option>Contacted</option><option>In Progress</option>
           <option>Follow-up Due</option><option>Proposal Sent</option><option>Won</option>
           <option>Cold</option><option>Completed</option>
         </select>
@@ -2338,11 +2338,11 @@
     _uwCompany = companyName; _uwRow = rowNum;
     const existingLead = findLeadByRow(rowNum) || findLeadByCompany(companyName) || {};
     const currentProgress = Math.max(0, Math.min(100, Number(existingLead.workCompletedPercent ?? progress) || 0));
-    const currentWorkStatus = currentProgress > 0 && existingLead.workStatus === 'New Lead'
-      ? 'In Progress'
-      : (existingLead.workStatus || (existingLead.leadStatus === 'Project' ? 'Not Started' : 'New Lead'));
+    const currentWorkStatus = existingLead.workStatus === 'New Lead'
+      ? (currentProgress > 0 ? 'In Progress' : 'Not Started')
+      : (existingLead.workStatus || 'Not Started');
     document.getElementById('updateWorkClient').textContent = `Client: ${companyName} · Project: ${existingLead.serviceType || 'General Project'}`;
-    setSelectValue('uwWorkStatus', currentWorkStatus, 'New Lead');
+    setSelectValue('uwWorkStatus', currentWorkStatus, 'Not Started');
     setSelectValue('uwLeadStatus', existingLead.leadStatus, 'New');
     setSelectValue('uwAssignedTo', existingLead.assignedTo, 'Kriscent Team');
     document.getElementById('uwProgress').value = currentProgress;
