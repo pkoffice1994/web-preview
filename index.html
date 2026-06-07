@@ -2234,11 +2234,21 @@
   document.getElementById('saveUpdateWork').addEventListener('click', async () => {
     if (isWorkSubmitting) return;
     isWorkSubmitting = true;
+    const existingLead = findLeadByCompany(_uwCompany) || {};
+    const rowNumber = Number(_uwRow);
     const payload = {
       requestId: createRequestId('work'),
       action: 'update_work',
       companyName: _uwCompany,
-      row_number: _uwRow,
+      rowNumber: Number.isFinite(rowNumber) ? rowNumber : '',
+      row_number: Number.isFinite(rowNumber) ? rowNumber : '',
+      ownerName: existingLead.ownerName || existingLead.assignedTo || '',
+      clientEmail: existingLead.clientEmail || '',
+      clientPhone: existingLead.clientPhone || '',
+      serviceType: existingLead.serviceType || '',
+      leadSource: existingLead.leadSource || '',
+      budget: existingLead.budget || 0,
+      leadNote: existingLead.leadNote || '',
       workStatus: document.getElementById('uwWorkStatus').value,
       leadStatus: document.getElementById('uwLeadStatus').value,
       workCompletedPercent: document.getElementById('uwProgress').value,
