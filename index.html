@@ -1392,8 +1392,57 @@
     <div id="clientProfileBody"></div>
     <div class="modal-actions">
       <button type="button" class="btn-cancel" id="closeClientProfileBtn">Close</button>
+      <button type="button" class="btn-cancel" id="profileGenerateInvoiceBtn">Generate Invoice</button>
       <button type="button" class="btn-cancel" id="profileAddProjectBtn">+ Project</button>
       <button type="button" class="btn-primary" id="profileUpdateWorkBtn">Update Work</button>
+    </div>
+  </div>
+</div>
+
+<!-- INVOICE MODAL -->
+<div class="modal-backdrop hidden" id="invoiceModal">
+  <div class="modal" style="width:620px">
+    <h3>Generate Invoice</h3>
+    <p id="invoiceClient" style="color:var(--muted);font-size:13px;margin-bottom:20px"></p>
+    <div class="form-grid">
+      <div class="field">
+        <label>Invoice ID</label>
+        <input id="invInvoiceId" />
+      </div>
+      <div class="field">
+        <label>Invoice Status</label>
+        <select id="invInvoiceStatus">
+          <option>Draft</option><option>Sent</option><option>Pending</option><option>Paid</option><option>Overdue</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Total Amount (USD)</label>
+        <input type="number" id="invTotalAmount" min="0" />
+      </div>
+      <div class="field">
+        <label>Paid Amount (USD)</label>
+        <input type="number" id="invPaidAmount" min="0" value="0" />
+      </div>
+      <div class="field">
+        <label>Invoice Due Date</label>
+        <input type="date" id="invDueDate" />
+      </div>
+      <div class="field">
+        <label>Assigned To</label>
+        <select id="invAssignedTo">
+          <option>Pawan</option><option>Riya</option><option>Arjun</option><option>Ayesha</option><option>Kriscent Team</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Invoice Notes / Scope</label>
+        <textarea id="invNotes" placeholder="Scope, deliverables, payment notes, milestones..."></textarea>
+      </div>
+    </div>
+    <div class="inline-note" id="invoiceStatusText">Preview opens in a new tab. Save Invoice syncs invoice data to n8n and Google Sheet.</div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" id="cancelInvoiceBtn">Cancel</button>
+      <button type="button" class="btn-cancel" id="previewInvoiceBtn">Preview Invoice</button>
+      <button type="button" class="btn-primary" id="saveInvoiceBtn">Save Invoice</button>
     </div>
   </div>
 </div>
@@ -1603,8 +1652,12 @@
   const clientProfileSubtitle = document.getElementById('clientProfileSubtitle');
   const clientProfileBody = document.getElementById('clientProfileBody');
   const closeClientProfileBtn = document.getElementById('closeClientProfileBtn');
+  const profileGenerateInvoiceBtn = document.getElementById('profileGenerateInvoiceBtn');
   const profileAddProjectBtn = document.getElementById('profileAddProjectBtn');
   const profileUpdateWorkBtn = document.getElementById('profileUpdateWorkBtn');
+  const invoiceModal = document.getElementById('invoiceModal');
+  const invoiceClient = document.getElementById('invoiceClient');
+  const invoiceStatusText = document.getElementById('invoiceStatusText');
   const toast = document.getElementById('toast');
   const scrollTopBtn = document.getElementById('scrollTopBtn');
   const settingsBtn = document.getElementById('settingsBtn');
@@ -1625,6 +1678,7 @@
   let isLeadSubmitting = false;
   let isWorkSubmitting = false;
   let isProjectSubmitting = false;
+  let isInvoiceSubmitting = false;
 
   function showToast(msg) {
     toast.textContent = msg; toast.classList.remove('hidden');
@@ -1830,6 +1884,97 @@
       </div>`;
   }
 
+  function buildInvoiceMarkup(payload) {
+    const totalAmount = toMoneyNumber(payload.budget);
+    const paidAmount = toMoneyNumber(payload.paidAmount);
+    const dueAmount = Math.max(0, totalAmount - paidAmount);
+    const detailRows = [
+      ['Invoice ID', payload.invoiceId || 'INV-DRAFT'],
+      ['Client', payload.companyName || '-'],
+      ['Owner', payload.ownerName || payload.assignedTo || '-'],
+      ['Client Email', payload.clientEmail || '-'],
+      ['Phone', payload.clientPhone || '-'],
+      ['Service', payload.serviceType || '-'],
+      ['Invoice Status', payload.invoiceStatus || 'Draft'],
+      ['Due Date', payload.invoiceDueDate || payload.nextFollowUpDate || '-'],
+      ['Assigned To', payload.assignedTo || '-'],
+      ['Total Amount', formatMoney(totalAmount)],
+      ['Paid Amount', formatMoney(paidAmount)],
+      ['Balance Due', formatMoney(dueAmount)]
+    ].map(([label, value]) => `
+      <tr>
+        <td style="padding:14px 18px;border-bottom:1px solid #e8edf5;width:34%;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;">${escapeHtml(label)}</td>
+        <td style="padding:14px 18px;border-bottom:1px solid #e8edf5;font-size:15px;color:#172033;font-weight:600;">${escapeHtml(value)}</td>
+      </tr>`).join('');
+    const notes = escapeHtml(payload.invoiceNotes || payload.analystNotes || payload.leadNote || 'No scope notes added yet.').replace(/\n/g, '<br>');
+    return `
+      <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #dbe7ff;border-radius:20px;overflow:hidden;box-shadow:0 24px 70px rgba(17,30,67,.14);">
+        <div style="padding:34px;background:linear-gradient(135deg,#101a3a,#29459b 62%,#5f7dfd);color:#ffffff;">
+          <div style="display:flex;justify-content:space-between;gap:24px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:12px;letter-spacing:2px;font-weight:700;opacity:.8;">KRISCENT TECHNO HUB</div>
+              <h1 style="margin:14px 0 8px;font-size:34px;line-height:1.1;">Project Invoice</h1>
+              <p style="margin:0;color:#d7e4ff;font-size:15px;max-width:420px;">Generated from the Kriscent operations dashboard for project billing and payment tracking.</p>
+            </div>
+            <div style="text-align:right;min-width:220px;">
+              <div style="font-size:12px;color:#b7c7ff;text-transform:uppercase;letter-spacing:1px;">Invoice Number</div>
+              <div style="font-size:26px;font-weight:700;margin-top:8px;">${escapeHtml(payload.invoiceId || 'INV-DRAFT')}</div>
+              <div style="margin-top:14px;font-size:13px;color:#d7e4ff;">Due ${escapeHtml(payload.invoiceDueDate || payload.nextFollowUpDate || '-')}</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:28px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px;">
+            <div style="padding:16px;border:1px solid #e7edf8;border-radius:14px;background:#f9fbff;">
+              <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;">Client</div>
+              <div style="margin-top:8px;font-size:20px;font-weight:700;color:#172033;">${escapeHtml(payload.companyName || '-')}</div>
+              <div style="margin-top:6px;font-size:13px;color:#475569;">${escapeHtml(payload.ownerName || payload.assignedTo || '-')}</div>
+            </div>
+            <div style="padding:16px;border:1px solid #e7edf8;border-radius:14px;background:#f9fbff;">
+              <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;">Project</div>
+              <div style="margin-top:8px;font-size:20px;font-weight:700;color:#172033;">${escapeHtml(payload.serviceType || '-')}</div>
+              <div style="margin-top:6px;font-size:13px;color:#475569;">${escapeHtml(payload.leadSource || 'Dashboard')}</div>
+            </div>
+            <div style="padding:16px;border:1px solid #e7edf8;border-radius:14px;background:#f9fbff;">
+              <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.8px;">Balance Due</div>
+              <div style="margin-top:8px;font-size:28px;font-weight:700;color:#172033;">${formatMoney(dueAmount)}</div>
+              <div style="margin-top:6px;font-size:13px;color:#475569;">Status: ${escapeHtml(payload.invoiceStatus || 'Draft')}</div>
+            </div>
+          </div>
+          <table role="presentation" style="width:100%;border-collapse:collapse;border:1px solid #e8edf5;border-radius:16px;overflow:hidden;">${detailRows}</table>
+          <div style="margin-top:22px;padding:18px 20px;border-radius:16px;background:#f5f8ff;border:1px solid #e5ebf7;">
+            <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Scope Notes</div>
+            <div style="font-size:14px;line-height:1.8;color:#172033;">${notes}</div>
+          </div>
+        </div>
+        <div style="padding:20px 28px;background:#f8faff;border-top:1px solid #e8edf5;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div style="font-size:12px;color:#64748b;">Generated ${escapeHtml(new Date().toLocaleString('en-IN'))}</div>
+          <div style="font-size:12px;color:#64748b;">Ops dashboard · n8n sync ready</div>
+        </div>
+      </div>`;
+  }
+
+  function buildInvoiceEmail(payload) {
+    return `
+      <div style="margin:0;padding:30px 12px;background:#f3f6fb;font-family:Arial,sans-serif;color:#172033;">
+        ${buildInvoiceMarkup(payload)}
+      </div>`;
+  }
+
+  function buildInvoiceDocument(payload) {
+    return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(payload.invoiceId || 'Invoice')}</title>
+  </head>
+  <body style="margin:0;background:#eef3fb;font-family:Arial,sans-serif;padding:28px;">
+    ${buildInvoiceMarkup(payload)}
+  </body>
+</html>`;
+  }
+
   function toMoneyNumber(value) {
     const n = Number(String(value ?? 0).replace(/[^0-9.-]/g, ''));
     return Number.isFinite(n) ? n : 0;
@@ -1985,6 +2130,8 @@
           <div class="inv-amount">${formatMoney(due)}</div>
           <span class="pill ${invoiceStatusClass(status)}">${escapeHtml(status)}</span>
         </div>`;
+      item.style.cursor = 'pointer';
+      item.addEventListener('click', () => openInvoiceModal(lead.companyName, lead.rowNumber || ''));
       invoiceList.appendChild(item);
     });
   }
@@ -2053,6 +2200,8 @@
         <div class="profile-row"><span>Projects</span><span>${projects.length}</span></div>
         <div class="profile-row"><span>Client Owner</span><span>${escapeHtml(lead.ownerName || lead.assignedTo || 'Unassigned')}</span></div>
         <div class="profile-row"><span>Contact</span><span>${escapeHtml([lead.clientEmail, lead.clientPhone].filter(Boolean).join(' · ') || 'No contact added')}</span></div>
+        <div class="profile-row"><span>Invoice ID</span><span>${escapeHtml(lead.invoiceId || 'INV-DRAFT')}</span></div>
+        <div class="profile-row"><span>Invoice Status</span><span>${escapeHtml(lead.invoiceStatus || 'Draft')}</span></div>
       </div>
       <div class="profile-section">
         <h4>Projects</h4>
@@ -2086,11 +2235,98 @@
       closeClientProfile();
       openAddProject(lead.companyName);
     };
+    if (profileGenerateInvoiceBtn) profileGenerateInvoiceBtn.onclick = () => {
+      closeClientProfile();
+      openInvoiceModal(lead.companyName, lead.rowNumber || '');
+    };
     clientProfileModal?.classList.remove('hidden');
   }
 
   function closeClientProfile() {
     clientProfileModal?.classList.add('hidden');
+  }
+
+  let _invoiceCompany = '', _invoiceRow = '';
+
+  function buildInvoicePayload(baseLead, overrides = {}) {
+    const totalAmount = toMoneyNumber(overrides.budget ?? baseLead.budget ?? 0);
+    const paidAmount = toMoneyNumber(overrides.paidAmount ?? baseLead.paidAmount ?? 0);
+    const rowNumber = Number(baseLead.rowNumber || overrides.rowNumber || '');
+    const invoiceId = String(overrides.invoiceId || baseLead.invoiceId || (Number.isFinite(rowNumber) && rowNumber ? `INV-${String(rowNumber).padStart(4, '0')}` : `INV-${Date.now()}`));
+    const invoiceStatus = String(overrides.invoiceStatus || baseLead.invoiceStatus || (paidAmount >= totalAmount && totalAmount > 0 ? 'Paid' : 'Draft'));
+    const invoiceDueDate = String(overrides.invoiceDueDate || baseLead.invoiceDueDate || baseLead.nextFollowUpDate || toDateInputValue(new Date()));
+    const payload = {
+      requestId: createRequestId('invoice'),
+      action: 'update_invoice',
+      rowNumber: Number.isFinite(rowNumber) ? rowNumber : '',
+      row_number: Number.isFinite(rowNumber) ? rowNumber : '',
+      companyName: baseLead.companyName || _invoiceCompany,
+      ownerName: baseLead.ownerName || baseLead.assignedTo || '',
+      clientEmail: baseLead.clientEmail || '',
+      clientPhone: baseLead.clientPhone || '',
+      serviceType: baseLead.serviceType || '',
+      leadSource: baseLead.leadSource || 'Dashboard',
+      budget: totalAmount,
+      leadStatus: baseLead.leadStatus || 'Project',
+      leadNote: overrides.leadNote || baseLead.leadNote || '',
+      assignedTo: overrides.assignedTo || baseLead.assignedTo || 'Kriscent Team',
+      workStatus: baseLead.workStatus || 'Proposal Sent',
+      workCompletedPercent: Number(baseLead.workCompletedPercent || 0),
+      lastFollowUpDate: toDateInputValue(new Date()),
+      nextFollowUpDate: baseLead.nextFollowUpDate || invoiceDueDate,
+      analystNotes: overrides.invoiceNotes || baseLead.analystNotes || baseLead.leadNote || '',
+      submittedAt: baseLead.submittedAt || new Date().toISOString(),
+      invoiceId,
+      invoiceStatus,
+      paidAmount,
+      invoiceDueDate
+    };
+    payload.emailType = 'HTML';
+    payload.emailSubject = `Invoice Ready | ${payload.companyName || 'Client'} | ${payload.invoiceId}`;
+    payload.emailHtml = buildInvoiceEmail(payload);
+    payload.mailSubject = payload.emailSubject;
+    payload.mailHtml = payload.emailHtml;
+    return payload;
+  }
+
+  function openInvoicePreview(payload) {
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) { showToast('Allow popups to preview invoice'); return; }
+    win.document.open();
+    win.document.write(buildInvoiceDocument(payload));
+    win.document.close();
+  }
+
+  function closeInvoiceModal() {
+    invoiceModal?.classList.add('hidden');
+  }
+
+  function openInvoiceModal(companyName, rowNumber = '') {
+    const lead = findLeadByRow(rowNumber) || findLeadByCompany(companyName) || {};
+    _invoiceCompany = companyName || lead.companyName || '';
+    _invoiceRow = rowNumber || lead.rowNumber || '';
+    const invoicePayload = buildInvoicePayload(lead, {
+      invoiceStatus: lead.invoiceStatus || 'Draft',
+      paidAmount: lead.paidAmount || 0,
+      invoiceDueDate: lead.invoiceDueDate || lead.nextFollowUpDate || toDateInputValue(new Date()),
+      assignedTo: lead.assignedTo || 'Kriscent Team',
+      invoiceNotes: lead.analystNotes || lead.leadNote || ''
+    });
+    if (invoiceClient) {
+      invoiceClient.textContent = `${invoicePayload.companyName || 'Client'} · ${invoicePayload.serviceType || 'Project'} · Balance ${formatMoney(Math.max(0, toMoneyNumber(invoicePayload.budget) - toMoneyNumber(invoicePayload.paidAmount)))}`;
+    }
+    document.getElementById('invInvoiceId').value = invoicePayload.invoiceId || '';
+    setSelectValue('invInvoiceStatus', invoicePayload.invoiceStatus, 'Draft');
+    document.getElementById('invTotalAmount').value = toMoneyNumber(invoicePayload.budget);
+    document.getElementById('invPaidAmount').value = toMoneyNumber(invoicePayload.paidAmount);
+    document.getElementById('invDueDate').value = invoicePayload.invoiceDueDate || '';
+    setSelectValue('invAssignedTo', invoicePayload.assignedTo, 'Kriscent Team');
+    document.getElementById('invNotes').value = invoicePayload.analystNotes || '';
+    if (invoiceStatusText) {
+      invoiceStatusText.textContent = 'Preview opens in a new tab. Save Invoice syncs invoice data to n8n and Google Sheet.';
+      invoiceStatusText.style.color = '';
+    }
+    invoiceModal?.classList.remove('hidden');
   }
 
   function renderAnalystCards(leads) {
@@ -2334,6 +2570,71 @@
   leadModal.addEventListener('click', e => { if (e.target === leadModal) closeLeadModal(); });
   closeClientProfileBtn?.addEventListener('click', closeClientProfile);
   clientProfileModal?.addEventListener('click', e => { if (e.target === clientProfileModal) closeClientProfile(); });
+  document.getElementById('cancelInvoiceBtn')?.addEventListener('click', closeInvoiceModal);
+  invoiceModal?.addEventListener('click', e => { if (e.target === invoiceModal) closeInvoiceModal(); });
+  document.getElementById('previewInvoiceBtn')?.addEventListener('click', () => {
+    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
+    const payload = buildInvoicePayload(baseLead, {
+      invoiceId: document.getElementById('invInvoiceId').value.trim(),
+      invoiceStatus: document.getElementById('invInvoiceStatus').value,
+      budget: document.getElementById('invTotalAmount').value,
+      paidAmount: document.getElementById('invPaidAmount').value,
+      invoiceDueDate: document.getElementById('invDueDate').value,
+      assignedTo: document.getElementById('invAssignedTo').value,
+      invoiceNotes: document.getElementById('invNotes').value.trim()
+    });
+    openInvoicePreview(payload);
+  });
+  document.getElementById('saveInvoiceBtn')?.addEventListener('click', async () => {
+    if (isInvoiceSubmitting) return;
+    isInvoiceSubmitting = true;
+    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
+    const payload = buildInvoicePayload(baseLead, {
+      invoiceId: document.getElementById('invInvoiceId').value.trim(),
+      invoiceStatus: document.getElementById('invInvoiceStatus').value,
+      budget: document.getElementById('invTotalAmount').value,
+      paidAmount: document.getElementById('invPaidAmount').value,
+      invoiceDueDate: document.getElementById('invDueDate').value,
+      assignedTo: document.getElementById('invAssignedTo').value,
+      invoiceNotes: document.getElementById('invNotes').value.trim()
+    });
+    const url = getSavedWebhookUrl();
+    if (invoiceStatusText) {
+      invoiceStatusText.textContent = 'Saving invoice...';
+      invoiceStatusText.style.color = '';
+    }
+    if (url) {
+      try {
+        await sendDashboardWebhook(payload, url);
+        Object.assign(baseLead, payload);
+        refreshLeadDirectories();
+        appendFeedItem('Invoice updated — ' + payload.companyName, `${payload.invoiceId} · ${formatMoney(payload.budget)} · ${payload.invoiceStatus}`);
+        addNotification('Invoice ready — ' + payload.companyName, `${payload.invoiceId} · Due ${payload.invoiceDueDate}`);
+        if (invoiceStatusText) {
+          invoiceStatusText.textContent = '✓ Invoice synced to Google Sheet via n8n';
+          invoiceStatusText.style.color = 'var(--green)';
+        }
+        showToast('Invoice synced ✓');
+        isInvoiceSubmitting = false;
+        setTimeout(closeInvoiceModal, 1100);
+        return;
+      } catch (error) {
+        if (invoiceStatusText) {
+          invoiceStatusText.textContent = 'Webhook failed — invoice saved locally only';
+          invoiceStatusText.style.color = 'var(--red)';
+        }
+      }
+    } else if (invoiceStatusText) {
+      invoiceStatusText.textContent = 'No webhook configured — invoice saved locally only';
+      invoiceStatusText.style.color = 'var(--amber)';
+    }
+    Object.assign(baseLead, payload);
+    refreshLeadDirectories();
+    appendFeedItem('Invoice updated (local) — ' + payload.companyName, `${payload.invoiceId} · ${formatMoney(payload.budget)} · ${payload.invoiceStatus}`);
+    showToast('Invoice saved locally');
+    isInvoiceSubmitting = false;
+    setTimeout(closeInvoiceModal, 1100);
+  });
 
   leadForm.addEventListener('submit', async e => {
     e.preventDefault();
