@@ -1442,6 +1442,7 @@
     <div class="modal-actions">
       <button type="button" class="btn-cancel" id="cancelInvoiceBtn">Cancel</button>
       <button type="button" class="btn-cancel" id="previewInvoiceBtn">Preview Invoice</button>
+      <button type="button" class="btn-cancel" id="sendInvoiceWhatsappBtn">Send WhatsApp</button>
       <button type="button" class="btn-primary" id="saveInvoiceBtn">Save Invoice</button>
     </div>
   </div>
@@ -1970,9 +1971,45 @@
     <title>${escapeHtml(payload.invoiceId || 'Invoice')}</title>
   </head>
   <body style="margin:0;background:#eef3fb;font-family:Arial,sans-serif;padding:28px;">
+    <div style="max-width:760px;margin:0 auto 18px;display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="window.print()" style="border:0;border-radius:10px;background:#172033;color:#fff;padding:12px 18px;font-weight:700;cursor:pointer;">Print / Save PDF</button>
+    </div>
     ${buildInvoiceMarkup(payload)}
   </body>
 </html>`;
+  }
+
+  function normalizePhoneForWhatsapp(phone) {
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.length === 10) return `91${digits}`;
+    return digits;
+  }
+
+  function buildInvoiceWhatsappText(payload) {
+    const totalAmount = toMoneyNumber(payload.budget);
+    const paidAmount = toMoneyNumber(payload.paidAmount);
+    const dueAmount = Math.max(0, totalAmount - paidAmount);
+    return [
+      `Hello ${payload.ownerName || 'there'},`,
+      '',
+      `Invoice from Kriscent Techno Hub is ready.`,
+      `Invoice ID: ${payload.invoiceId || 'INV-DRAFT'}`,
+      `Company: ${payload.companyName || '-'}`,
+      `Service: ${payload.serviceType || '-'}`,
+      `Total: ${formatMoney(totalAmount)}`,
+      `Paid: ${formatMoney(paidAmount)}`,
+      `Balance Due: ${formatMoney(dueAmount)}`,
+      `Due Date: ${payload.invoiceDueDate || payload.nextFollowUpDate || '-'}`,
+      '',
+      `Please confirm once payment is processed.`
+    ].join('\n');
+  }
+
+  function buildWhatsappUrl(payload) {
+    const phone = normalizePhoneForWhatsapp(payload.clientPhone);
+    const text = encodeURIComponent(payload.whatsappMessage || buildInvoiceWhatsappText(payload));
+    return phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
   }
 
   function toMoneyNumber(value) {
@@ -2246,7 +2283,7 @@
     clientProfileModal?.classList.add('hidden');
   }
 
-  let _invoiceCompany = '', _invoiceRow = '';
+  let _invoiceCompany = '', _invoiceRow = '', _lastInvoicePayload = null;
 
   function buildInvoicePayload(baseLead, overrides = {}) {
     const totalAmount = toMoneyNumber(overrides.budget ?? baseLead.budget ?? 0);
@@ -2281,6 +2318,8 @@
       paidAmount,
       invoiceDueDate
     };
+    payload.whatsappMessage = buildInvoiceWhatsappText(payload);
+    payload.whatsappUrl = buildWhatsappUrl(payload);
     payload.emailType = 'HTML';
     payload.emailSubject = `Invoice Ready | ${payload.companyName || 'Client'} | ${payload.invoiceId}`;
     payload.emailHtml = buildInvoiceEmail(payload);
@@ -2326,6 +2365,7 @@
       invoiceStatusText.textContent = 'Preview opens in a new tab. Save Invoice syncs invoice data to n8n and Google Sheet.';
       invoiceStatusText.style.color = '';
     }
+    _lastInvoicePayload = invoicePayload;
     invoiceModal?.classList.remove('hidden');
   }
 
@@ -2583,7 +2623,26 @@
       assignedTo: document.getElementById('invAssignedTo').value,
       invoiceNotes: document.getElementById('invNotes').value.trim()
     });
+    _lastInvoicePayload = payload;
     openInvoicePreview(payload);
+  });
+  document.getElementById('sendInvoiceWhatsappBtn')?.addEventListener('click', () => {
+    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
+    const payload = buildInvoicePayload(baseLead, {
+      invoiceId: document.getElementById('invInvoiceId').value.trim(),
+      invoiceStatus: document.getElementById('invInvoiceStatus').value,
+      budget: document.getElementById('invTotalAmount').value,
+      paidAmount: document.getElementById('invPaidAmount').value,
+      invoiceDueDate: document.getElementById('invDueDate').value,
+      assignedTo: document.getElementById('invAssignedTo').value,
+      invoiceNotes: document.getElementById('invNotes').value.trim()
+    });
+    _lastInvoicePayload = payload;
+    window.open(payload.whatsappUrl, '_blank', 'noopener,noreferrer');
+    if (invoiceStatusText) {
+      invoiceStatusText.textContent = 'WhatsApp message opened. Send it to the client from WhatsApp.';
+      invoiceStatusText.style.color = 'var(--green)';
+    }
   });
   document.getElementById('saveInvoiceBtn')?.addEventListener('click', async () => {
     if (isInvoiceSubmitting) return;
@@ -2598,6 +2657,7 @@
       assignedTo: document.getElementById('invAssignedTo').value,
       invoiceNotes: document.getElementById('invNotes').value.trim()
     });
+    _lastInvoicePayload = payload;
     const url = getSavedWebhookUrl();
     if (invoiceStatusText) {
       invoiceStatusText.textContent = 'Saving invoice...';
