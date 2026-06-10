@@ -2868,7 +2868,33 @@
     const currentWorkStatus = existingLead.workStatus === 'New Lead'
       ? (currentProgress > 0 ? 'In Progress' : 'Not Started')
       : (existingLead.workStatus || 'Not Started');
-    document.getElementById('updateWorkClient').textContent = `Client: ${companyName} · Project: ${existingLead.serviceType || 'General Project'}`;
+    const uwClientSelect = document.getElementById('uwClientSelect');
+    if (uwClientSelect) {
+      uwClientSelect.innerHTML = '';
+      const allCompanies = [...new Set(liveLeads.map(l => l.companyName).filter(Boolean))];
+      if (companyName && !allCompanies.includes(companyName)) allCompanies.unshift(companyName);
+      if (!allCompanies.length) allCompanies.push(companyName || 'Unknown');
+      allCompanies.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        if (name === companyName) opt.selected = true;
+        uwClientSelect.appendChild(opt);
+      });
+      uwClientSelect.onchange = () => {
+        const sel = uwClientSelect.value;
+        const lead2 = findLeadByCompany(sel) || {};
+        _uwCompany = sel; _uwRow = lead2.rowNumber || '';
+        document.getElementById('updateWorkClient').textContent = `Project: ${lead2.serviceType || 'General Project'}`;
+        setSelectValue('uwWorkStatus', lead2.workStatus, 'Not Started');
+        setSelectValue('uwLeadStatus', lead2.leadStatus, 'New');
+        setSelectValue('uwAssignedTo', lead2.assignedTo, 'Kriscent Team');
+        const p2 = Math.max(0,Math.min(100,Number(lead2.workCompletedPercent)||0));
+        document.getElementById('uwProgress').value = p2;
+        document.getElementById('uwProgressVal').textContent = p2;
+        document.getElementById('uwNotes').value = lead2.analystNotes || '';
+      };
+    }
+    document.getElementById('updateWorkClient').textContent = `Project: ${existingLead.serviceType || 'General Project'}`;
     setSelectValue('uwWorkStatus', currentWorkStatus, 'Not Started');
     setSelectValue('uwLeadStatus', existingLead.leadStatus, 'New');
     setSelectValue('uwAssignedTo', existingLead.assignedTo, 'Kriscent Team');
