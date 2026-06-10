@@ -2355,20 +2355,57 @@
     if (invoiceClient) {
       invoiceClient.textContent = `${invoicePayload.companyName || 'Client'} · ${invoicePayload.serviceType || 'Project'} · Balance ${formatMoney(Math.max(0, toMoneyNumber(invoicePayload.budget) - toMoneyNumber(invoicePayload.paidAmount)))}`;
     }
-    document.getElementById('invInvoiceId').value = invoicePayload.invoiceId || '';
-    setSelectValue('invInvoiceStatus', invoicePayload.invoiceStatus, 'Draft');
-    document.getElementById('invTotalAmount').value = toMoneyNumber(invoicePayload.budget);
-    document.getElementById('invPaidAmount').value = toMoneyNumber(invoicePayload.paidAmount);
-    document.getElementById('invDueDate').value = invoicePayload.invoiceDueDate || '';
-    setSelectValue('invAssignedTo', invoicePayload.assignedTo, 'Kriscent Team');
-    document.getElementById('invNotes').value = invoicePayload.analystNotes || '';
-    if (invoiceStatusText) {
-      invoiceStatusText.textContent = 'Preview opens in a new tab. Save Invoice syncs invoice data to n8n and Google Sheet.';
-      invoiceStatusText.style.color = '';
+    document.getElementById('sendInvoiceWhatsappBtn')?.addEventListener('click', async () => {
+    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
+    const payload = buildInvoicePayload(baseLead, {
+      invoiceId: document.getElementById('invInvoiceId').value.trim(),
+      invoiceStatus: document.getElementById('invInvoiceStatus').value,
+      budget: document.getElementById('invTotalAmount').value,
+      paidAmount: document.getElementById('invPaidAmount').value,
+      invoiceDueDate: document.getElementById('invDueDate').value,
+      assignedTo: document.getElementById('invAssignedTo').value,
+      invoiceNotes: document.getElementById('invNotes').value.trim()
+    });
+    payload.action = 'send_whatsapp_invoice';
+    _lastInvoicePayload = payload;
+    const url = getSavedWebhookUrl();
+    if (invoiceStatusText) { invoiceStatusText.textContent = 'Sending WhatsApp via n8n...'; invoiceStatusText.style.color = ''; }
+    if (url) {
+      try {
+        await sendDashboardWebhook(payload, url);
+        if (invoiceStatusText) { invoiceStatusText.textContent = '✓ WhatsApp sent via Twilio!'; invoiceStatusText.style.color = 'var(--green)'; }
+        showToast('WhatsApp sent ✓');
+        appendFeedItem('WhatsApp sent — ' + payload.companyName, payload.invoiceId);
+        addNotification('WhatsApp sent — ' + payload.companyName, payload.invoiceId);
+      } catch(e) {
+        window.open(payload.whatsappUrl, '_blank', 'noopener,noreferrer');
+        if (invoiceStatusText) { invoiceStatusText.textContent = 'n8n failed — opened WhatsApp Web'; invoiceStatusText.style.color = 'var(--amber)'; }
+      }
+    } else {
+      window.open(payload.whatsappUrl, '_blank', 'noopener,noreferrer');
     }
-    _lastInvoicePayload = invoicePayload;
-    invoiceModal?.classList.remove('hidden');
-  }
+  });
+
+  document.getElementById('downloadInvoicePdfBtn')?.addEventListener('click', () => {
+    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
+    const payload = _lastInvoicePayload || buildInvoicePayload(baseLead, {
+      invoiceId: document.getElementById('invInvoiceId').value.trim(),
+      invoiceStatus: document.getElementById('invInvoiceStatus').value,
+      budget: document.getElementById('invTotalAmount').value,
+      paidAmount: document.getElementById('invPaidAmount').value,
+      invoiceDueDate: document.getElementById('invDueDate').value,
+      assignedTo: document.getElementById('invAssignedTo').value,
+      invoiceNotes: document.getElementById('invNotes').value.trim()
+    });
+    _lastInvoicePayload = payload;
+    const win = window.open('', '_blank', 'noopener,noreferrer');
+    if (!win) { showToast('Allow popups to generate PDF'); return; }
+    win.document.open();
+    win.document.write(buildInvoiceDocument(payload));
+    win.document.close();
+    setTimeout(() => { try { win.focus(); win.print(); } catch(e){} }, 900);
+    showToast('PDF ready — Save as PDF in print dialog');
+  });
 
   function renderAnalystCards(leads) {
     if (!analystGrid || !leads.length) return;
