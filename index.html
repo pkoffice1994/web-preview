@@ -1439,11 +1439,11 @@
         <textarea id="invNotes" placeholder="Scope, deliverables, payment notes, milestones..."></textarea>
       </div>
     </div>
-    <div class="inline-note" id="invoiceStatusText">Preview opens in a new tab. Save Invoice syncs invoice data to n8n and Google Sheet.</div>
+    <div class="inline-note" id="invoiceStatusText">Preview shows invoice. Client receives only invoice PDF / completed project email. Follow-up remains internal only.</div>
     <div class="modal-actions">
       <button type="button" class="btn-cancel" id="cancelInvoiceBtn">Cancel</button>
       <button type="button" class="btn-cancel" id="previewInvoiceBtn">Preview Invoice</button>
-      <button type="button" class="btn-cancel" id="sendInvoiceWhatsappBtn">Send WhatsApp</button>
+      <button type="button" class="btn-cancel" id="sendInvoiceWhatsappBtn">Send PDF via n8n</button>
       <button type="button" class="btn-cancel" id="downloadInvoicePdfBtn">Download PDF</button>
       <button type="button" class="btn-primary" id="saveInvoiceBtn">Save Invoice</button>
     </div>
@@ -1677,6 +1677,7 @@
     month: { stats: ['186', '26', '$74k', '$212k'], sub: ['34 qualified this month', '8 new starts approved', '11 open invoices', 'Monthly target exceeded'] },
     quarter: { stats: ['514', '41', '$168k', '$618k'], sub: ['Pipeline up 22%', '12 enterprise accounts', '19 milestone collections due', 'Quarter on track'] }
   };
+  const KRISCENT_INTERNAL_EMAIL = 'pkoffice1994@gmail.com';
   let liveLeads = [];
   let isLeadSubmitting = false;
   let isWorkSubmitting = false;
@@ -1971,9 +1972,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(payload.invoiceId || 'Invoice')}</title>
+    <style>@media print{.no-print{display:none!important} body{background:#eef3fb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style>
   </head>
-  <body style="margin:0;background:#eef3fb;font-family:Arial,sans-serif;padding:28px;">
-    <div style="max-width:760px;margin:0 auto 18px;display:flex;justify-content:flex-end;gap:10px;">
+  <body style="margin:0;background:#eef3fb;font-family:Arial,sans-serif;padding:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    <div class="no-print" style="max-width:760px;margin:0 auto 18px;display:flex;justify-content:flex-end;gap:10px;">
       <button onclick="window.print()" style="border:0;border-radius:10px;background:#172033;color:#fff;padding:12px 18px;font-weight:700;cursor:pointer;">Print / Save PDF</button>
     </div>
     ${buildInvoiceMarkup(payload)}
@@ -2052,6 +2054,7 @@
       requestId: fieldValue(data, ['requestId', 'Request ID'], ''),
       companyName,
       ownerName: fieldValue(data, ['ownerName', 'Owner'], assignedTo),
+      companyEmail: fieldValue(data, ['companyEmail', 'Company Email', 'companyMail', 'Company Mail', 'internalEmail', 'Internal Email'], KRISCENT_INTERNAL_EMAIL),
       leadNote: fieldValue(data, ['leadNote', 'Lead Note', 'analystNotes', 'Analyst Notes'], `${workCompletedPercent}% complete`),
       serviceType,
       leadSource,
@@ -2301,6 +2304,7 @@
       row_number: Number.isFinite(rowNumber) ? rowNumber : '',
       companyName: baseLead.companyName || _invoiceCompany,
       ownerName: baseLead.ownerName || baseLead.assignedTo || '',
+      companyEmail: baseLead.companyEmail || baseLead.companyMail || baseLead.internalEmail || KRISCENT_INTERNAL_EMAIL,
       clientEmail: baseLead.clientEmail || '',
       clientPhone: baseLead.clientPhone || '',
       serviceType: baseLead.serviceType || '',
@@ -2318,7 +2322,10 @@
       invoiceId,
       invoiceStatus,
       paidAmount,
-      invoiceDueDate
+      invoiceDueDate,
+      sendClientEmail: true,
+      sendInternalFollowup: false,
+      notificationRule: 'CLIENT_ONLY_FOR_INVOICE'
     };
     payload.whatsappMessage = buildInvoiceWhatsappText(payload);
     payload.whatsappUrl = buildWhatsappUrl(payload);
@@ -2364,7 +2371,7 @@
     setSelectValue('invAssignedTo', invoicePayload.assignedTo, 'Kriscent Team');
     document.getElementById('invNotes').value = invoicePayload.analystNotes || '';
     if (invoiceStatusText) {
-      invoiceStatusText.textContent = 'Preview opens in a new tab. Save Invoice syncs invoice data to n8n and Google Sheet.';
+      invoiceStatusText.textContent = 'Preview shows invoice. Client receives only invoice PDF / completed project email. Follow-up remains internal only.';
       invoiceStatusText.style.color = '';
     }
     _lastInvoicePayload = invoicePayload;
@@ -2612,11 +2619,10 @@
   leadModal.addEventListener('click', e => { if (e.target === leadModal) closeLeadModal(); });
   closeClientProfileBtn?.addEventListener('click', closeClientProfile);
   clientProfileModal?.addEventListener('click', e => { if (e.target === clientProfileModal) closeClientProfile(); });
-  document.getElementById('cancelInvoiceBtn')?.addEventListener('click', closeInvoiceModal);
-  invoiceModal?.addEventListener('click', e => { if (e.target === invoiceModal) closeInvoiceModal(); });
-  document.getElementById('previewInvoiceBtn')?.addEventListener('click', () => {
+
+  function getCurrentInvoicePayloadFromModal() {
     const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
-    const payload = buildInvoicePayload(baseLead, {
+    return buildInvoicePayload(baseLead, {
       invoiceId: document.getElementById('invInvoiceId').value.trim(),
       invoiceStatus: document.getElementById('invInvoiceStatus').value,
       budget: document.getElementById('invTotalAmount').value,
@@ -2625,99 +2631,177 @@
       assignedTo: document.getElementById('invAssignedTo').value,
       invoiceNotes: document.getElementById('invNotes').value.trim()
     });
+  }
+
+  function getInvoicePdfFileName(payload) {
+    return `${payload.invoiceId || 'Invoice'}-${(payload.companyName || 'Client').replace(/[^a-z0-9]+/gi, '-')}.pdf`;
+  }
+
+  function createInvoicePdfElement(payload) {
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'fixed';
+    wrapper.style.left = '-10000px';
+    wrapper.style.top = '0';
+    wrapper.style.width = '820px';
+    wrapper.style.minHeight = '1120px';
+    wrapper.style.background = '#eef3fb';
+    wrapper.style.padding = '24px';
+    wrapper.style.zIndex = '-1';
+    wrapper.style.color = '#172033';
+    wrapper.style.fontFamily = 'Arial, sans-serif';
+    wrapper.style.webkitPrintColorAdjust = 'exact';
+    wrapper.style.printColorAdjust = 'exact';
+    wrapper.innerHTML = buildInvoiceMarkup(payload);
+    document.body.appendChild(wrapper);
+    return wrapper;
+  }
+
+  async function createInvoicePdfBlob(payload) {
+    if (!window.html2pdf) throw new Error('PDF library not loaded');
+    const wrapper = createInvoicePdfElement(payload);
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 250)));
+    try {
+      return await window.html2pdf().set({
+        margin: 0.25,
+        filename: getInvoicePdfFileName(payload),
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#eef3fb',
+          logging: false,
+          windowWidth: 900,
+          scrollX: 0,
+          scrollY: 0
+        },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      }).from(wrapper).outputPdf('blob');
+    } finally {
+      wrapper.remove();
+    }
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function sendInvoicePdfToN8n(payload, mode = 'send_invoice_pdf') {
+    const url = getSavedWebhookUrl();
+    if (!url) throw new Error('n8n webhook URL is not configured');
+    const pdfBlob = await createInvoicePdfBlob(payload);
+    const pdfBase64 = await blobToBase64(pdfBlob);
+    const finalPayload = {
+      ...payload,
+      action: mode,
+      invoiceStatus: payload.invoiceStatus || 'Sent',
+      pdfFileName: getInvoicePdfFileName(payload),
+      invoicePdfBase64: pdfBase64,
+      invoiceHtml: buildInvoiceDocument(payload),
+      whatsappMode: 'n8n_api',
+      sendWhatsapp: true,
+      sendEmail: true,
+      sendClientEmail: true,
+      sendInternalEmail: false,
+      recipientRule: 'client_invoice_only'
+    };
+    return sendDashboardWebhook(finalPayload, url);
+  }
+
+  document.getElementById('cancelInvoiceBtn')?.addEventListener('click', closeInvoiceModal);
+  invoiceModal?.addEventListener('click', e => { if (e.target === invoiceModal) closeInvoiceModal(); });
+
+  document.getElementById('previewInvoiceBtn')?.addEventListener('click', () => {
+    const payload = getCurrentInvoicePayloadFromModal();
     _lastInvoicePayload = payload;
     openInvoicePreview(payload);
   });
-  document.getElementById('sendInvoiceWhatsappBtn')?.addEventListener('click', () => {
-    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
-    const payload = buildInvoicePayload(baseLead, {
-      invoiceId: document.getElementById('invInvoiceId').value.trim(),
-      invoiceStatus: document.getElementById('invInvoiceStatus').value,
-      budget: document.getElementById('invTotalAmount').value,
-      paidAmount: document.getElementById('invPaidAmount').value,
-      invoiceDueDate: document.getElementById('invDueDate').value,
-      assignedTo: document.getElementById('invAssignedTo').value,
-      invoiceNotes: document.getElementById('invNotes').value.trim()
-    });
+
+  document.getElementById('downloadInvoicePdfBtn')?.addEventListener('click', async () => {
+    const payload = getCurrentInvoicePayloadFromModal();
     _lastInvoicePayload = payload;
-    window.open(payload.whatsappUrl, '_blank', 'noopener,noreferrer');
     if (invoiceStatusText) {
-      invoiceStatusText.textContent = 'WhatsApp message opened. Send it to the client from WhatsApp.';
-      invoiceStatusText.style.color = 'var(--green)';
+      invoiceStatusText.textContent = 'Generating PDF...';
+      invoiceStatusText.style.color = '';
     }
-  });
-  document.getElementById('downloadInvoicePdfBtn')?.addEventListener('click', () => {
-    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
-    const payload = buildInvoicePayload(baseLead, {
-      invoiceId: document.getElementById('invInvoiceId').value.trim(),
-      invoiceStatus: document.getElementById('invInvoiceStatus').value,
-      budget: document.getElementById('invTotalAmount').value,
-      paidAmount: document.getElementById('invPaidAmount').value,
-      invoiceDueDate: document.getElementById('invDueDate').value,
-      assignedTo: document.getElementById('invAssignedTo').value,
-      invoiceNotes: document.getElementById('invNotes').value.trim()
-    });
-    _lastInvoicePayload = payload;
-    const fileName = `${payload.invoiceId || 'Invoice'}-${(payload.companyName || 'Client').replace(/[^a-z0-9]+/gi, '-')}.pdf`;
-    const wrapper = document.createElement('div');
-    wrapper.style.background = '#eef3fb';
-    wrapper.style.padding = '24px';
-    wrapper.innerHTML = buildInvoiceMarkup(payload);
-    if (window.html2pdf) {
-      window.html2pdf().set({
-        margin: 0.3,
-        filename: fileName,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-      }).from(wrapper).save();
+    try {
+      const pdfBlob = await createInvoicePdfBlob(payload);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(pdfBlob);
+      link.download = getInvoicePdfFileName(payload);
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => { URL.revokeObjectURL(link.href); link.remove(); }, 1200);
       if (invoiceStatusText) {
-        invoiceStatusText.textContent = 'PDF download started.';
+        invoiceStatusText.textContent = '✓ PDF downloaded successfully.';
         invoiceStatusText.style.color = 'var(--green)';
       }
-    } else {
+    } catch (error) {
+      console.error('PDF download failed', error);
       openInvoicePreview(payload);
       if (invoiceStatusText) {
-        invoiceStatusText.textContent = 'PDF library not loaded. Preview opened — use Print / Save PDF.';
+        invoiceStatusText.textContent = 'PDF failed. Preview opened — use Print / Save PDF.';
         invoiceStatusText.style.color = 'var(--amber)';
       }
     }
   });
+
+  document.getElementById('sendInvoiceWhatsappBtn')?.addEventListener('click', async () => {
+    const payload = getCurrentInvoicePayloadFromModal();
+    _lastInvoicePayload = payload;
+    if (invoiceStatusText) {
+      invoiceStatusText.textContent = 'Sending invoice PDF to n8n for WhatsApp + Email...';
+      invoiceStatusText.style.color = '';
+    }
+    try {
+      await sendInvoicePdfToN8n(payload, 'send_invoice_pdf');
+      if (invoiceStatusText) {
+        invoiceStatusText.textContent = '✓ Sent to n8n. WhatsApp PDF + Email flow triggered.';
+        invoiceStatusText.style.color = 'var(--green)';
+      }
+      showToast('Invoice PDF sent to n8n ✓');
+    } catch (error) {
+      console.error('n8n invoice PDF send failed', error);
+      if (invoiceStatusText) {
+        invoiceStatusText.textContent = 'n8n send failed. Check webhook URL / n8n execution / Twilio media setup.';
+        invoiceStatusText.style.color = 'var(--red)';
+      }
+      showToast('n8n send failed');
+    }
+  });
+
   document.getElementById('saveInvoiceBtn')?.addEventListener('click', async () => {
     if (isInvoiceSubmitting) return;
     isInvoiceSubmitting = true;
     const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
-    const payload = buildInvoicePayload(baseLead, {
-      invoiceId: document.getElementById('invInvoiceId').value.trim(),
-      invoiceStatus: document.getElementById('invInvoiceStatus').value,
-      budget: document.getElementById('invTotalAmount').value,
-      paidAmount: document.getElementById('invPaidAmount').value,
-      invoiceDueDate: document.getElementById('invDueDate').value,
-      assignedTo: document.getElementById('invAssignedTo').value,
-      invoiceNotes: document.getElementById('invNotes').value.trim()
-    });
+    const payload = getCurrentInvoicePayloadFromModal();
     _lastInvoicePayload = payload;
-    const url = getSavedWebhookUrl();
     if (invoiceStatusText) {
-      invoiceStatusText.textContent = 'Saving invoice...';
+      invoiceStatusText.textContent = 'Saving invoice to n8n + Google Sheet...';
       invoiceStatusText.style.color = '';
     }
+    const url = getSavedWebhookUrl();
     if (url) {
       try {
-        await sendDashboardWebhook(payload, url);
+        await sendDashboardWebhook({ ...payload, action: 'update_invoice' }, url);
         Object.assign(baseLead, payload);
         refreshLeadDirectories();
         appendFeedItem('Invoice updated — ' + payload.companyName, `${payload.invoiceId} · ${formatMoney(payload.budget)} · ${payload.invoiceStatus}`);
         addNotification('Invoice ready — ' + payload.companyName, `${payload.invoiceId} · Due ${payload.invoiceDueDate}`);
         if (invoiceStatusText) {
-          invoiceStatusText.textContent = '✓ Invoice synced to Google Sheet via n8n';
+          invoiceStatusText.textContent = '✓ Invoice saved to Google Sheet via n8n';
           invoiceStatusText.style.color = 'var(--green)';
         }
-        showToast('Invoice synced ✓');
+        showToast('Invoice saved ✓');
         isInvoiceSubmitting = false;
         setTimeout(closeInvoiceModal, 1100);
         return;
       } catch (error) {
+        console.error('Invoice save webhook failed', error);
         if (invoiceStatusText) {
           invoiceStatusText.textContent = 'Webhook failed — invoice saved locally only';
           invoiceStatusText.style.color = 'var(--red)';
@@ -2758,6 +2842,10 @@
     const submittedAt = new Date().toISOString();
     const lastFollowUpDate = toDateInputValue(new Date());
     const payload = { requestId: createRequestId('lead'), action: 'new_lead', companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
+    payload.companyEmail = payload.companyEmail || KRISCENT_INTERNAL_EMAIL;
+    payload.sendClientEmail = false;
+    payload.sendInternalEmail = true;
+    payload.recipientRule = 'internal_new_lead_only';
     payload.emailType = 'HTML';
     payload.emailSubject = `New Lead Received | ${payload.companyName || 'Client'} | ${payload.serviceType || 'Project'}`;
     payload.emailHtml = buildNewLeadEmail(payload);
@@ -2899,6 +2987,7 @@
       rowNumber: Number.isFinite(rowNumber) ? rowNumber : '',
       row_number: Number.isFinite(rowNumber) ? rowNumber : '',
       ownerName: existingLead.ownerName || existingLead.assignedTo || '',
+      companyEmail: existingLead.companyEmail || existingLead.companyMail || existingLead.internalEmail || KRISCENT_INTERNAL_EMAIL,
       clientEmail: existingLead.clientEmail || '',
       clientPhone: existingLead.clientPhone || '',
       serviceType: existingLead.serviceType || '',
@@ -2914,8 +3003,15 @@
       lastFollowUpDate: new Date().toISOString().slice(0,10),
       submittedAt: existingLead.submittedAt || new Date().toISOString()
     };
+    const isCompletedProject = String(payload.workStatus || '').toLowerCase().includes('complete') || Number(payload.workCompletedPercent) >= 100;
+    payload.action = isCompletedProject ? 'project_completed' : 'update_work';
+    payload.sendClientEmail = isCompletedProject;
+    payload.sendInternalEmail = !isCompletedProject;
+    payload.recipientRule = isCompletedProject ? 'client_project_completed_only' : 'internal_followup_update_only';
     payload.emailType = 'HTML';
-    payload.emailSubject = `Project Update | ${payload.companyName || 'Client'} | ${payload.workCompletedPercent}%`;
+    payload.emailSubject = isCompletedProject
+      ? `Project Completed | ${payload.companyName || 'Client'} | ${payload.serviceType || 'Project'}`
+      : `Internal Project Update | ${payload.companyName || 'Client'} | ${payload.workCompletedPercent}%`;
     payload.emailHtml = buildWorkUpdateEmail(payload);
     payload.mailSubject = payload.emailSubject;
     payload.mailHtml = payload.emailHtml;
@@ -2979,6 +3075,7 @@
       action: 'add_project',
       companyName: _apCompany,
       ownerName: existingLead.ownerName || existingLead.assignedTo || '',
+      companyEmail: existingLead.companyEmail || existingLead.companyMail || existingLead.internalEmail || KRISCENT_INTERNAL_EMAIL,
       clientEmail: existingLead.clientEmail || '',
       clientPhone: existingLead.clientPhone || '',
       serviceType: document.getElementById('apService').value,
@@ -2994,6 +3091,10 @@
       leadNote: document.getElementById('apNotes').value || 'New project from existing client',
       submittedAt: new Date().toISOString()
     };
+    payload.companyEmail = payload.companyEmail || KRISCENT_INTERNAL_EMAIL;
+    payload.sendClientEmail = false;
+    payload.sendInternalEmail = true;
+    payload.recipientRule = 'internal_project_added_only';
     payload.emailType = 'HTML';
     payload.emailSubject = `New Project Added | ${payload.companyName || 'Client'} | ${payload.serviceType || 'Project'}`;
     payload.emailHtml = buildProjectAddedEmail(payload);
