@@ -691,6 +691,7 @@
       .client-foot { flex-wrap: wrap; }
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div class="shell">
@@ -1443,6 +1444,7 @@
       <button type="button" class="btn-cancel" id="cancelInvoiceBtn">Cancel</button>
       <button type="button" class="btn-cancel" id="previewInvoiceBtn">Preview Invoice</button>
       <button type="button" class="btn-cancel" id="sendInvoiceWhatsappBtn">Send WhatsApp</button>
+      <button type="button" class="btn-cancel" id="downloadInvoicePdfBtn">Download PDF</button>
       <button type="button" class="btn-primary" id="saveInvoiceBtn">Save Invoice</button>
     </div>
   </div>
@@ -1633,10 +1635,10 @@
   const LOCAL_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook/collect-requirement';
   const CLOUD_WEBHOOK_URL = 'https://pawankumar1234.app.n8n.cloud/webhook/collect-requirement';
 
-  function getSavedSheetId() { return window.localStorage.getItem(STORAGE_KEY_SHEET) || ''; }
+  function getSavedSheetId() { return window.localStorage.getItem(STORAGE_KEY_SHEET) || '1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI'; }
   function saveSheetId(id) { if (id) window.localStorage.setItem(STORAGE_KEY_SHEET, id); }
-  function getSavedSheetTab() { return window.localStorage.getItem(STORAGE_KEY_SHEET_TAB) || 'Sheet5'; }
-  function saveSheetTab(name) { window.localStorage.setItem(STORAGE_KEY_SHEET_TAB, name || 'Sheet5'); }
+  function getSavedSheetTab() { return window.localStorage.getItem(STORAGE_KEY_SHEET_TAB) || '1809797896'; }
+  function saveSheetTab(name) { window.localStorage.setItem(STORAGE_KEY_SHEET_TAB, name || '1809797896'); }
 
   const navButtons = [...document.querySelectorAll('[data-nav-target]')];
   const leadModal = document.getElementById('leadModal');
@@ -2088,7 +2090,7 @@
     if (!clientGrid || !leads.length) return;
     clientGrid.innerHTML = '';
     const grouped = groupLeadsByCompany(leads);
-    [...grouped.values()].slice(0, 12).forEach(projects => {
+    [...grouped.values()].forEach(projects => {
       projects.sort((a, b) => Number(b.rowNumber || 0) - Number(a.rowNumber || 0));
       const lead = projects[0];
       const totalBudget = projects.reduce((sum, project) => sum + toMoneyNumber(project.budget), 0);
@@ -2151,7 +2153,7 @@
   function renderInvoiceList(leads) {
     if (!invoiceList || !leads.length) return;
     invoiceList.innerHTML = '';
-    leads.slice(0, 6).forEach((lead, index) => {
+    leads.forEach((lead, index) => {
       const budget = toMoneyNumber(lead.budget);
       const paid = toMoneyNumber(lead.paidAmount);
       const due = Math.max(0, budget - paid);
@@ -2527,10 +2529,10 @@
     }
     const sheetId = extractSheetId(source);
     const baseUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
-    const urls = [
-      `${baseUrl}&sheet=${encodeURIComponent(sheetName || 'Sheet5')}`,
-      baseUrl
-    ];
+    const activeTab = String(sheetName || '1809797896').trim();
+    const urls = /^\d+$/.test(activeTab)
+      ? [`${baseUrl}&gid=${encodeURIComponent(activeTab)}`, baseUrl]
+      : [`${baseUrl}&sheet=${encodeURIComponent(activeTab)}`, baseUrl];
     let lastError = null;
     for (const url of urls) {
       try {
@@ -2555,7 +2557,7 @@
 
   async function loadSheetData(sheetId, sheetName = getSavedSheetTab()) {
     if (!sheetId) return;
-    const activeSheetName = sheetName || 'Sheet5';
+    const activeSheetName = sheetName || '1809797896';
     try {
       const rows = await fetchSheetRows(sheetId, activeSheetName);
       leadTableBody.innerHTML = '';
@@ -2642,6 +2644,43 @@
     if (invoiceStatusText) {
       invoiceStatusText.textContent = 'WhatsApp message opened. Send it to the client from WhatsApp.';
       invoiceStatusText.style.color = 'var(--green)';
+    }
+  });
+  document.getElementById('downloadInvoicePdfBtn')?.addEventListener('click', () => {
+    const baseLead = findLeadByRow(_invoiceRow) || findLeadByCompany(_invoiceCompany) || {};
+    const payload = buildInvoicePayload(baseLead, {
+      invoiceId: document.getElementById('invInvoiceId').value.trim(),
+      invoiceStatus: document.getElementById('invInvoiceStatus').value,
+      budget: document.getElementById('invTotalAmount').value,
+      paidAmount: document.getElementById('invPaidAmount').value,
+      invoiceDueDate: document.getElementById('invDueDate').value,
+      assignedTo: document.getElementById('invAssignedTo').value,
+      invoiceNotes: document.getElementById('invNotes').value.trim()
+    });
+    _lastInvoicePayload = payload;
+    const fileName = `${payload.invoiceId || 'Invoice'}-${(payload.companyName || 'Client').replace(/[^a-z0-9]+/gi, '-')}.pdf`;
+    const wrapper = document.createElement('div');
+    wrapper.style.background = '#eef3fb';
+    wrapper.style.padding = '24px';
+    wrapper.innerHTML = buildInvoiceMarkup(payload);
+    if (window.html2pdf) {
+      window.html2pdf().set({
+        margin: 0.3,
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      }).from(wrapper).save();
+      if (invoiceStatusText) {
+        invoiceStatusText.textContent = 'PDF download started.';
+        invoiceStatusText.style.color = 'var(--green)';
+      }
+    } else {
+      openInvoicePreview(payload);
+      if (invoiceStatusText) {
+        invoiceStatusText.textContent = 'PDF library not loaded. Preview opened — use Print / Save PDF.';
+        invoiceStatusText.style.color = 'var(--amber)';
+      }
     }
   });
   document.getElementById('saveInvoiceBtn')?.addEventListener('click', async () => {
