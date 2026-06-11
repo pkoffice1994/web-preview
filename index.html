@@ -2032,7 +2032,288 @@
       <button onclick="window.print()" style="border:0;border-radius:10px;background:#172033;color:#fff;padding:12px 18px;font-weight:700;cursor:pointer;">Print / Save PDF</button>
     </div>
     ${buildInvoiceMarkup(payload)}
-  </body>
+  
+<script>
+/* CLEAN SHEET READER - NO CODE PREVIEW / NO DEBUG BOX */
+(function(){
+  function parseCSV(text){
+    const rows=[]; let row=[], cur='', inside=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i], next=text[i+1];
+      if(ch === '"' && inside && next === '"'){ cur += '"'; i++; }
+      else if(ch === '"'){ inside = !inside; }
+      else if(ch === ',' && !inside){ row.push(cur); cur=''; }
+      else if((ch === '\n' || ch === '\r') && !inside){
+        if(cur || row.length){ row.push(cur); rows.push(row); row=[]; cur=''; }
+        if(ch === '\r' && next === '\n') i++;
+      } else cur += ch;
+    }
+    if(cur || row.length){ row.push(cur); rows.push(row); }
+    return rows;
+  }
+
+  function normalizeKey(k){
+    return String(k || '').replace(/\uFEFF/g,'').replace(/\s+/g,' ').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  }
+
+  function getAny(row, names, fallback=''){
+    const wanted = names.map(normalizeKey);
+    for(const key in row){
+      if(wanted.includes(normalizeKey(key))) return row[key];
+    }
+    for(const key in row){
+      const nk = normalizeKey(key);
+      if(wanted.some(w => nk.includes(w) || w.includes(nk))) return row[key];
+    }
+    return fallback;
+  }
+
+  function num(v){
+    const n = Number(String(v ?? 0).replace(/₹|\$|,/g,'').replace(/INR|Rs\.?/ig,'').replace(/[^0-9.\-]/g,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function cleanPhone(v){
+    let p = String(v || '').replace(/[^0-9]/g,'');
+    if(p && !p.startsWith('91')) p = '91' + p;
+    return p;
+  }
+
+  function notify(msg){
+    if(typeof showToast === 'function') showToast(msg);
+    else alert(msg);
+  }
+
+  window.loadSheetData = async function(sheetIdArg, gidArg){
+    const sheetId = String(sheetIdArg || localStorage.getItem('kriscent_sheet_id') || localStorage.getItem('kriscent-sheet-id') || '1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI').trim();
+    const gid = String(gidArg || localStorage.getItem('kriscent_sheet_gid') || localStorage.getItem('kriscent-sheet-tab-name') || '1809797896').trim();
+
+    try{
+      const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`);
+      if(!res.ok) throw new Error('Sheet public access required / wrong GID');
+      const rows = parseCSV(await res.text());
+      if(rows.length < 2) throw new Error('No rows found in sheet');
+
+      const headers = rows[0].map(h => String(h || '').replace(/\uFEFF/g,'').trim());
+      const objects = rows.slice(1).filter(r => r.some(x => String(x||'').trim() !== '')).map(r => {
+        const obj = {};
+        headers.forEach((h,i) => obj[h] = r[i] || '');
+        return obj;
+      });
+
+      const mapped = objects.map((o, idx) => {
+        const budgetRaw = getAny(o, ['budget','budget ','projectBudget','project budget','amount','totalAmount','total amount','cost','price','quotation','deal value','value'], 0);
+        const paidRaw = getAny(o, ['paidAmount','paid amount','paid','advance','amountPaid','amount paid'], 0);
+
+        return {
+          rowNumber: idx + 2,
+          companyName: getAny(o, ['companyName','comapny_name','company name','company','client','clientName','client name'], 'Client'),
+          ownerName: getAny(o, ['ownerName','owner name','owner','clientOwner','client owner'], ''),
+          clientEmail: getAny(o, ['clientEmail','client email','email','mail','gmail'], ''),
+          clientPhone: cleanPhone(getAny(o, ['clientPhone','client phone','phone','mobile','whatsapp','whatsapp number'], '')),
+          serviceType: getAny(o, ['serviceType','service type','service','project type','project'], 'General Project'),
+          leadSource: getAny(o, ['leadSource','lead source','source'], 'Sheet'),
+          budget: num(budgetRaw),
+          paidAmount: num(paidRaw),
+          leadStatus: getAny(o, ['leadStatus','lead status','status'], 'New'),
+          assignedTo: getAny(o, ['assignedTo','assigned to','assignee','team member'], 'Kriscent Team'),
+          nextFollowUpDate: getAny(o, ['nextFollowUpDate','next followup date','next follow-up','followup','follow up'], ''),
+          analystNotes: getAny(o, ['analystNotes','analyst notes','leadNote','lead note','notes'], ''),
+          invoiceId: getAny(o, ['invoiceId','invoice id','invoice','invoice no','invoice number'], 'INV-' + Date.now() + '-' + idx),
+          invoiceStatus: getAny(o, ['invoiceStatus','invoice status','paymentStatus','payment status'], 'Draft'),
+          whatsappStatus: getAny(o, ['whatsappStatus','whatsapp status'], 'Not Sent'),
+          whatsappSentAt: getAny(o, ['whatsappSentAt','whatsapp sent at','whatsapp sent time'], ''),
+          whatsappMessageId: getAny(o, ['whatsappMessageId','whatsapp message id','message id'], ''),
+          emailStatus: getAny(o, ['emailStatus','email status'], 'Not Sent'),
+          lastActivity: getAny(o, ['lastActivity','last activity'], 'Loaded from sheet')
+        };
+      });
+
+      window.liveLeads = mapped;
+      window.clients = mapped;
+      window.kriscentLeads = mapped;
+      try{ localStorage.setItem('kriscent-clean-clients', JSON.stringify(mapped)); }catch(e){}
+      try{ localStorage.setItem('kriscent_clients', JSON.stringify(mapped)); }catch(e){}
+      try{ localStorage.setItem('kriscent_leads', JSON.stringify(mapped)); }catch(e){}
+
+      if(typeof renderLeadTable === 'function') renderLeadTable(mapped);
+      if(typeof renderClientCards === 'function') renderClientCards(mapped);
+      if(typeof renderInvoiceList === 'function') renderInvoiceList(mapped);
+      if(typeof renderTracking === 'function') renderTracking();
+      if(typeof renderAll === 'function') renderAll();
+
+      notify('Sheet data loaded: ' + mapped.length + ' rows');
+      console.log('Loaded headers:', headers);
+      console.log('First 3 budgets:', mapped.slice(0,3).map(x => [x.companyName, x.budget]));
+    }catch(e){
+      notify('Sheet load failed: ' + e.message);
+    }
+  };
+})();
+</script>
+
+
+<script>
+/* FINAL DASHBOARD FIX: Google Sheet budget + paidAmount robust reader */
+(function(){
+  function parseCSVFinal(text){
+    const rows=[]; let row=[], cur='', inside=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i], next=text[i+1];
+      if(ch === '"' && inside && next === '"'){ cur += '"'; i++; }
+      else if(ch === '"'){ inside = !inside; }
+      else if(ch === ',' && !inside){ row.push(cur); cur=''; }
+      else if((ch === '\n' || ch === '\r') && !inside){
+        if(cur || row.length){ row.push(cur); rows.push(row); row=[]; cur=''; }
+        if(ch === '\r' && next === '\n') i++;
+      } else cur += ch;
+    }
+    if(cur || row.length){ row.push(cur); rows.push(row); }
+    return rows;
+  }
+
+  function keyFinal(k){
+    return String(k || '')
+      .replace(/\uFEFF/g,'')
+      .replace(/\s+/g,' ')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g,'');
+  }
+
+  function pickFinal(row, names, fallback=''){
+    const wanted = names.map(keyFinal);
+    for(const key in row){
+      if(wanted.includes(keyFinal(key))) return row[key];
+    }
+    for(const key in row){
+      const nk = keyFinal(key);
+      if(wanted.some(w => nk === w || nk.includes(w) || w.includes(nk))) return row[key];
+    }
+    return fallback;
+  }
+
+  function toNumberFinal(v){
+    const clean = String(v ?? 0)
+      .replace(/₹|\$|,/g,'')
+      .replace(/INR|Rs\.?/ig,'')
+      .replace(/[^0-9.\-]/g,'');
+    const n = Number(clean);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function cleanPhoneFinal(v){
+    let p = String(v || '').replace(/[^0-9]/g,'');
+    if(p && !p.startsWith('91')) p = '91' + p;
+    return p;
+  }
+
+  function notifyFinal(msg){
+    if(typeof showToast === 'function') showToast(msg);
+    else if(typeof toast === 'function') toast(msg);
+    else alert(msg);
+  }
+
+  function refreshFinal(){
+    if(typeof renderAll === 'function') renderAll();
+    if(typeof renderLeadTable === 'function') renderLeadTable(window.liveLeads || window.clients || window.kriscentLeads || []);
+    if(typeof renderClientCards === 'function') renderClientCards(window.liveLeads || window.clients || window.kriscentLeads || []);
+    if(typeof renderInvoiceList === 'function') renderInvoiceList(window.liveLeads || window.clients || window.kriscentLeads || []);
+    if(typeof renderTracking === 'function') renderTracking();
+    if(typeof renderClientCardsFromPatch === 'function') renderClientCardsFromPatch();
+  }
+
+  window.loadSheetData = async function(){
+    const idEl = document.getElementById('sheetId') || document.getElementById('setSheetId');
+    const gidEl = document.getElementById('sheetGid') || document.getElementById('setSheetGid');
+
+    const sheetId = String(
+      idEl?.value ||
+      localStorage.getItem('kriscent_sheet_id') ||
+      localStorage.getItem('k_sheetId') ||
+      '1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI'
+    ).trim();
+
+    const gid = String(
+      gidEl?.value ||
+      localStorage.getItem('kriscent_sheet_gid') ||
+      localStorage.getItem('k_sheetGid') ||
+      '1809797896'
+    ).trim();
+
+    try{
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&cache=${Date.now()}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('Sheet public access required or wrong GID');
+
+      const rows = parseCSVFinal(await res.text());
+      if(rows.length < 2) throw new Error('Sheet has no data rows');
+
+      const headers = rows[0].map(h => String(h || '').replace(/\uFEFF/g,'').trim());
+      const raw = rows.slice(1).filter(r => r.some(x => String(x || '').trim() !== '')).map(r => {
+        const obj = {};
+        headers.forEach((h,i) => obj[h] = r[i] || '');
+        return obj;
+      });
+
+      const mapped = raw.map((o, idx) => {
+        const budgetRaw = pickFinal(o, [
+          'budget','Budget','budget ','Amount','amount','Project Budget','projectBudget',
+          'Total Amount','totalAmount','Cost','cost','Price','price','Quotation','quotation',
+          'Deal Value','value','project cost','Project Cost','Fees','fees'
+        ], 0);
+
+        const paidRaw = pickFinal(o, [
+          'paidAmount','Paid Amount','paid_amount','Paid','paid','Advance','advance',
+          'Amount Paid','amountPaid','Received','received'
+        ], 0);
+
+        return {
+          rowNumber: idx + 2,
+          companyName: pickFinal(o, ['companyName','comapny_name','company_name','Company Name','Company','client','Client','clientName','Client Name'], 'Client'),
+          ownerName: pickFinal(o, ['ownerName','Owner Name','owner','Owner','clientOwner','Client Owner'], ''),
+          clientEmail: pickFinal(o, ['clientEmail','Client Email','email','Email','mail','Mail','gmail','Gmail'], ''),
+          clientPhone: cleanPhoneFinal(pickFinal(o, ['clientPhone','Client Phone','phone','Phone','mobile','Mobile','whatsapp','WhatsApp','WhatsApp Number'], '')),
+          serviceType: pickFinal(o, ['serviceType','Service Type','service','Service','projectType','Project Type','project','Project'], 'General Project'),
+          leadSource: pickFinal(o, ['leadSource','Lead Source','source','Source'], 'Sheet'),
+          budget: toNumberFinal(budgetRaw),
+          paidAmount: toNumberFinal(paidRaw),
+          leadStatus: pickFinal(o, ['leadStatus','Lead Status','status','Status'], 'New'),
+          assignedTo: pickFinal(o, ['assignedTo','Assigned To','assignee','Assignee','Team Member'], 'Kriscent Team'),
+          nextFollowUpDate: pickFinal(o, ['nextFollowUpDate','Next FollowUp Date','Next Follow-up','Follow Up','followup','followUpDate'], ''),
+          analystNotes: pickFinal(o, ['analystNotes','Analyst Notes','leadNote','Lead Note','notes','Notes'], ''),
+          invoiceId: pickFinal(o, ['invoiceId','Invoice ID','invoice id','Invoice No','invoiceNo','Invoice Number'], 'INV-' + Date.now() + '-' + idx),
+          invoiceStatus: pickFinal(o, ['invoiceStatus','Invoice Status','paymentStatus','Payment Status'], 'Draft'),
+          whatsappStatus: pickFinal(o, ['whatsappStatus','WhatsApp Status'], 'Not Sent'),
+          whatsappSentAt: pickFinal(o, ['whatsappSentAt','WhatsApp Sent At','WhatsApp Sent Time'], ''),
+          whatsappMessageId: pickFinal(o, ['whatsappMessageId','WhatsApp Message ID','messageId','Message ID'], ''),
+          emailStatus: pickFinal(o, ['emailStatus','Email Status'], 'Not Sent'),
+          lastActivity: pickFinal(o, ['lastActivity','Last Activity'], 'Loaded from sheet')
+        };
+      });
+
+      // Update all possible globals used in older dashboard versions
+      window.liveLeads = mapped;
+      window.clients = mapped;
+      window.kriscentLeads = mapped;
+
+      localStorage.setItem('kriscent_clients', JSON.stringify(mapped));
+      localStorage.setItem('kriscent_leads', JSON.stringify(mapped));
+      localStorage.setItem('kriscent_clean_clients', JSON.stringify(mapped));
+
+      refreshFinal();
+
+      console.log('Sheet headers:', headers);
+      console.log('Budget read sample:', mapped.slice(0,5).map(x => ({company:x.companyName, budget:x.budget, paid:x.paidAmount})));
+      notifyFinal('Sheet loaded: ' + mapped.length + ' rows');
+    }catch(e){
+      notifyFinal('Sheet load failed: ' + e.message);
+    }
+  };
+})();
+</script>
+
+</body>
 </html>`;
   }
 
@@ -3375,5 +3656,286 @@
     addNotification('New analyst added', name + ' · ' + (role||'Team Member'));
   });
 </script>
+
+<script>
+/* CLEAN SHEET READER - NO CODE PREVIEW / NO DEBUG BOX */
+(function(){
+  function parseCSV(text){
+    const rows=[]; let row=[], cur='', inside=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i], next=text[i+1];
+      if(ch === '"' && inside && next === '"'){ cur += '"'; i++; }
+      else if(ch === '"'){ inside = !inside; }
+      else if(ch === ',' && !inside){ row.push(cur); cur=''; }
+      else if((ch === '\n' || ch === '\r') && !inside){
+        if(cur || row.length){ row.push(cur); rows.push(row); row=[]; cur=''; }
+        if(ch === '\r' && next === '\n') i++;
+      } else cur += ch;
+    }
+    if(cur || row.length){ row.push(cur); rows.push(row); }
+    return rows;
+  }
+
+  function normalizeKey(k){
+    return String(k || '').replace(/\uFEFF/g,'').replace(/\s+/g,' ').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  }
+
+  function getAny(row, names, fallback=''){
+    const wanted = names.map(normalizeKey);
+    for(const key in row){
+      if(wanted.includes(normalizeKey(key))) return row[key];
+    }
+    for(const key in row){
+      const nk = normalizeKey(key);
+      if(wanted.some(w => nk.includes(w) || w.includes(nk))) return row[key];
+    }
+    return fallback;
+  }
+
+  function num(v){
+    const n = Number(String(v ?? 0).replace(/₹|\$|,/g,'').replace(/INR|Rs\.?/ig,'').replace(/[^0-9.\-]/g,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function cleanPhone(v){
+    let p = String(v || '').replace(/[^0-9]/g,'');
+    if(p && !p.startsWith('91')) p = '91' + p;
+    return p;
+  }
+
+  function notify(msg){
+    if(typeof showToast === 'function') showToast(msg);
+    else alert(msg);
+  }
+
+  window.loadSheetData = async function(sheetIdArg, gidArg){
+    const sheetId = String(sheetIdArg || localStorage.getItem('kriscent_sheet_id') || localStorage.getItem('kriscent-sheet-id') || '1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI').trim();
+    const gid = String(gidArg || localStorage.getItem('kriscent_sheet_gid') || localStorage.getItem('kriscent-sheet-tab-name') || '1809797896').trim();
+
+    try{
+      const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`);
+      if(!res.ok) throw new Error('Sheet public access required / wrong GID');
+      const rows = parseCSV(await res.text());
+      if(rows.length < 2) throw new Error('No rows found in sheet');
+
+      const headers = rows[0].map(h => String(h || '').replace(/\uFEFF/g,'').trim());
+      const objects = rows.slice(1).filter(r => r.some(x => String(x||'').trim() !== '')).map(r => {
+        const obj = {};
+        headers.forEach((h,i) => obj[h] = r[i] || '');
+        return obj;
+      });
+
+      const mapped = objects.map((o, idx) => {
+        const budgetRaw = getAny(o, ['budget','budget ','projectBudget','project budget','amount','totalAmount','total amount','cost','price','quotation','deal value','value'], 0);
+        const paidRaw = getAny(o, ['paidAmount','paid amount','paid','advance','amountPaid','amount paid'], 0);
+
+        return {
+          rowNumber: idx + 2,
+          companyName: getAny(o, ['companyName','comapny_name','company name','company','client','clientName','client name'], 'Client'),
+          ownerName: getAny(o, ['ownerName','owner name','owner','clientOwner','client owner'], ''),
+          clientEmail: getAny(o, ['clientEmail','client email','email','mail','gmail'], ''),
+          clientPhone: cleanPhone(getAny(o, ['clientPhone','client phone','phone','mobile','whatsapp','whatsapp number'], '')),
+          serviceType: getAny(o, ['serviceType','service type','service','project type','project'], 'General Project'),
+          leadSource: getAny(o, ['leadSource','lead source','source'], 'Sheet'),
+          budget: num(budgetRaw),
+          paidAmount: num(paidRaw),
+          leadStatus: getAny(o, ['leadStatus','lead status','status'], 'New'),
+          assignedTo: getAny(o, ['assignedTo','assigned to','assignee','team member'], 'Kriscent Team'),
+          nextFollowUpDate: getAny(o, ['nextFollowUpDate','next followup date','next follow-up','followup','follow up'], ''),
+          analystNotes: getAny(o, ['analystNotes','analyst notes','leadNote','lead note','notes'], ''),
+          invoiceId: getAny(o, ['invoiceId','invoice id','invoice','invoice no','invoice number'], 'INV-' + Date.now() + '-' + idx),
+          invoiceStatus: getAny(o, ['invoiceStatus','invoice status','paymentStatus','payment status'], 'Draft'),
+          whatsappStatus: getAny(o, ['whatsappStatus','whatsapp status'], 'Not Sent'),
+          whatsappSentAt: getAny(o, ['whatsappSentAt','whatsapp sent at','whatsapp sent time'], ''),
+          whatsappMessageId: getAny(o, ['whatsappMessageId','whatsapp message id','message id'], ''),
+          emailStatus: getAny(o, ['emailStatus','email status'], 'Not Sent'),
+          lastActivity: getAny(o, ['lastActivity','last activity'], 'Loaded from sheet')
+        };
+      });
+
+      window.liveLeads = mapped;
+      window.clients = mapped;
+      window.kriscentLeads = mapped;
+      try{ localStorage.setItem('kriscent-clean-clients', JSON.stringify(mapped)); }catch(e){}
+      try{ localStorage.setItem('kriscent_clients', JSON.stringify(mapped)); }catch(e){}
+      try{ localStorage.setItem('kriscent_leads', JSON.stringify(mapped)); }catch(e){}
+
+      if(typeof renderLeadTable === 'function') renderLeadTable(mapped);
+      if(typeof renderClientCards === 'function') renderClientCards(mapped);
+      if(typeof renderInvoiceList === 'function') renderInvoiceList(mapped);
+      if(typeof renderTracking === 'function') renderTracking();
+      if(typeof renderAll === 'function') renderAll();
+
+      notify('Sheet data loaded: ' + mapped.length + ' rows');
+      console.log('Loaded headers:', headers);
+      console.log('First 3 budgets:', mapped.slice(0,3).map(x => [x.companyName, x.budget]));
+    }catch(e){
+      notify('Sheet load failed: ' + e.message);
+    }
+  };
+})();
+</script>
+
+
+<script>
+/* FINAL DASHBOARD FIX: Google Sheet budget + paidAmount robust reader */
+(function(){
+  function parseCSVFinal(text){
+    const rows=[]; let row=[], cur='', inside=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i], next=text[i+1];
+      if(ch === '"' && inside && next === '"'){ cur += '"'; i++; }
+      else if(ch === '"'){ inside = !inside; }
+      else if(ch === ',' && !inside){ row.push(cur); cur=''; }
+      else if((ch === '\n' || ch === '\r') && !inside){
+        if(cur || row.length){ row.push(cur); rows.push(row); row=[]; cur=''; }
+        if(ch === '\r' && next === '\n') i++;
+      } else cur += ch;
+    }
+    if(cur || row.length){ row.push(cur); rows.push(row); }
+    return rows;
+  }
+
+  function keyFinal(k){
+    return String(k || '')
+      .replace(/\uFEFF/g,'')
+      .replace(/\s+/g,' ')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g,'');
+  }
+
+  function pickFinal(row, names, fallback=''){
+    const wanted = names.map(keyFinal);
+    for(const key in row){
+      if(wanted.includes(keyFinal(key))) return row[key];
+    }
+    for(const key in row){
+      const nk = keyFinal(key);
+      if(wanted.some(w => nk === w || nk.includes(w) || w.includes(nk))) return row[key];
+    }
+    return fallback;
+  }
+
+  function toNumberFinal(v){
+    const clean = String(v ?? 0)
+      .replace(/₹|\$|,/g,'')
+      .replace(/INR|Rs\.?/ig,'')
+      .replace(/[^0-9.\-]/g,'');
+    const n = Number(clean);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function cleanPhoneFinal(v){
+    let p = String(v || '').replace(/[^0-9]/g,'');
+    if(p && !p.startsWith('91')) p = '91' + p;
+    return p;
+  }
+
+  function notifyFinal(msg){
+    if(typeof showToast === 'function') showToast(msg);
+    else if(typeof toast === 'function') toast(msg);
+    else alert(msg);
+  }
+
+  function refreshFinal(){
+    if(typeof renderAll === 'function') renderAll();
+    if(typeof renderLeadTable === 'function') renderLeadTable(window.liveLeads || window.clients || window.kriscentLeads || []);
+    if(typeof renderClientCards === 'function') renderClientCards(window.liveLeads || window.clients || window.kriscentLeads || []);
+    if(typeof renderInvoiceList === 'function') renderInvoiceList(window.liveLeads || window.clients || window.kriscentLeads || []);
+    if(typeof renderTracking === 'function') renderTracking();
+    if(typeof renderClientCardsFromPatch === 'function') renderClientCardsFromPatch();
+  }
+
+  window.loadSheetData = async function(){
+    const idEl = document.getElementById('sheetId') || document.getElementById('setSheetId');
+    const gidEl = document.getElementById('sheetGid') || document.getElementById('setSheetGid');
+
+    const sheetId = String(
+      idEl?.value ||
+      localStorage.getItem('kriscent_sheet_id') ||
+      localStorage.getItem('k_sheetId') ||
+      '1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI'
+    ).trim();
+
+    const gid = String(
+      gidEl?.value ||
+      localStorage.getItem('kriscent_sheet_gid') ||
+      localStorage.getItem('k_sheetGid') ||
+      '1809797896'
+    ).trim();
+
+    try{
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&cache=${Date.now()}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error('Sheet public access required or wrong GID');
+
+      const rows = parseCSVFinal(await res.text());
+      if(rows.length < 2) throw new Error('Sheet has no data rows');
+
+      const headers = rows[0].map(h => String(h || '').replace(/\uFEFF/g,'').trim());
+      const raw = rows.slice(1).filter(r => r.some(x => String(x || '').trim() !== '')).map(r => {
+        const obj = {};
+        headers.forEach((h,i) => obj[h] = r[i] || '');
+        return obj;
+      });
+
+      const mapped = raw.map((o, idx) => {
+        const budgetRaw = pickFinal(o, [
+          'budget','Budget','budget ','Amount','amount','Project Budget','projectBudget',
+          'Total Amount','totalAmount','Cost','cost','Price','price','Quotation','quotation',
+          'Deal Value','value','project cost','Project Cost','Fees','fees'
+        ], 0);
+
+        const paidRaw = pickFinal(o, [
+          'paidAmount','Paid Amount','paid_amount','Paid','paid','Advance','advance',
+          'Amount Paid','amountPaid','Received','received'
+        ], 0);
+
+        return {
+          rowNumber: idx + 2,
+          companyName: pickFinal(o, ['companyName','comapny_name','company_name','Company Name','Company','client','Client','clientName','Client Name'], 'Client'),
+          ownerName: pickFinal(o, ['ownerName','Owner Name','owner','Owner','clientOwner','Client Owner'], ''),
+          clientEmail: pickFinal(o, ['clientEmail','Client Email','email','Email','mail','Mail','gmail','Gmail'], ''),
+          clientPhone: cleanPhoneFinal(pickFinal(o, ['clientPhone','Client Phone','phone','Phone','mobile','Mobile','whatsapp','WhatsApp','WhatsApp Number'], '')),
+          serviceType: pickFinal(o, ['serviceType','Service Type','service','Service','projectType','Project Type','project','Project'], 'General Project'),
+          leadSource: pickFinal(o, ['leadSource','Lead Source','source','Source'], 'Sheet'),
+          budget: toNumberFinal(budgetRaw),
+          paidAmount: toNumberFinal(paidRaw),
+          leadStatus: pickFinal(o, ['leadStatus','Lead Status','status','Status'], 'New'),
+          assignedTo: pickFinal(o, ['assignedTo','Assigned To','assignee','Assignee','Team Member'], 'Kriscent Team'),
+          nextFollowUpDate: pickFinal(o, ['nextFollowUpDate','Next FollowUp Date','Next Follow-up','Follow Up','followup','followUpDate'], ''),
+          analystNotes: pickFinal(o, ['analystNotes','Analyst Notes','leadNote','Lead Note','notes','Notes'], ''),
+          invoiceId: pickFinal(o, ['invoiceId','Invoice ID','invoice id','Invoice No','invoiceNo','Invoice Number'], 'INV-' + Date.now() + '-' + idx),
+          invoiceStatus: pickFinal(o, ['invoiceStatus','Invoice Status','paymentStatus','Payment Status'], 'Draft'),
+          whatsappStatus: pickFinal(o, ['whatsappStatus','WhatsApp Status'], 'Not Sent'),
+          whatsappSentAt: pickFinal(o, ['whatsappSentAt','WhatsApp Sent At','WhatsApp Sent Time'], ''),
+          whatsappMessageId: pickFinal(o, ['whatsappMessageId','WhatsApp Message ID','messageId','Message ID'], ''),
+          emailStatus: pickFinal(o, ['emailStatus','Email Status'], 'Not Sent'),
+          lastActivity: pickFinal(o, ['lastActivity','Last Activity'], 'Loaded from sheet')
+        };
+      });
+
+      // Update all possible globals used in older dashboard versions
+      window.liveLeads = mapped;
+      window.clients = mapped;
+      window.kriscentLeads = mapped;
+
+      localStorage.setItem('kriscent_clients', JSON.stringify(mapped));
+      localStorage.setItem('kriscent_leads', JSON.stringify(mapped));
+      localStorage.setItem('kriscent_clean_clients', JSON.stringify(mapped));
+
+      refreshFinal();
+
+      console.log('Sheet headers:', headers);
+      console.log('Budget read sample:', mapped.slice(0,5).map(x => ({company:x.companyName, budget:x.budget, paid:x.paidAmount})));
+      notifyFinal('Sheet loaded: ' + mapped.length + ' rows');
+    }catch(e){
+      notifyFinal('Sheet load failed: ' + e.message);
+    }
+  };
+})();
+</script>
+
 </body>
 </html>
