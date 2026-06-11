@@ -690,6 +690,15 @@
       .client-grid { grid-template-columns: 1fr; }
       .client-foot { flex-wrap: wrap; }
     }
+  
+    /* Message Tracking Center - minimal n8n patch */
+    .tracking-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:16px 20px; }
+    .tracking-mini { background:var(--surface-2); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    .tracking-mini span { color:var(--muted); font-size:12px; display:block; margin-bottom:4px; }
+    .tracking-mini strong { font-size:22px; }
+    @media(max-width:900px){ .tracking-summary{grid-template-columns:repeat(2,1fr);} }
+    @media(max-width:600px){ .tracking-summary{grid-template-columns:1fr;} }
+
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
@@ -1069,6 +1078,41 @@
           </div>
         </div>
       </div>
+
+      
+      <!-- MESSAGE TRACKING CENTER -->
+      <div class="card" id="messageTracking">
+        <div class="card-head">
+          <div>
+            <h2>Message Tracking Center</h2>
+            <p>WhatsApp, email, invoice and n8n status from Google Sheet</p>
+          </div>
+          <button class="tbtn" type="button" data-action="open-sheet">⟳ Refresh Sheet</button>
+        </div>
+        <div class="tracking-summary">
+          <div class="tracking-mini"><span>WhatsApp Sent</span><strong id="trackWhatsappSent">0</strong></div>
+          <div class="tracking-mini"><span>Email Sent</span><strong id="trackEmailSent">0</strong></div>
+          <div class="tracking-mini"><span>Failed</span><strong id="trackFailed">0</strong></div>
+          <div class="tracking-mini"><span>Last Sync</span><strong id="trackLastSync" style="font-size:14px">-</strong></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Invoice</th>
+                <th>WhatsApp</th>
+                <th>Sent Time</th>
+                <th>Message ID</th>
+                <th>Email</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody id="messageTrackingBody"></tbody>
+          </table>
+        </div>
+      </div>
+
 
       <!-- CLIENT CARDS -->
       <div id="clients">
@@ -1972,7 +2016,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(payload.invoiceId || 'Invoice')}</title>
-    <style>@media print{.no-print{display:none!important} body{background:#eef3fb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style>
+    <style>@media print{.no-print{display:none!important} body{background:#eef3fb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+    /* Message Tracking Center - minimal n8n patch */
+    .tracking-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:16px 20px; }
+    .tracking-mini { background:var(--surface-2); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    .tracking-mini span { color:var(--muted); font-size:12px; display:block; margin-bottom:4px; }
+    .tracking-mini strong { font-size:22px; }
+    @media(max-width:900px){ .tracking-summary{grid-template-columns:repeat(2,1fr);} }
+    @media(max-width:600px){ .tracking-summary{grid-template-columns:1fr;} }
+
+  </style>
   </head>
   <body style="margin:0;background:#eef3fb;font-family:Arial,sans-serif;padding:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
     <div class="no-print" style="max-width:760px;margin:0 auto 18px;display:flex;justify-content:flex-end;gap:10px;">
@@ -2413,10 +2466,42 @@
     });
   }
 
+
+  function messageStatusClass(status) {
+    const s = String(status || '').toLowerCase();
+    if (s.includes('sent') || s.includes('delivered') || s.includes('paid') || s.includes('completed')) return 's-won';
+    if (s.includes('fail') || s.includes('error')) return 's-cold';
+    return 's-follow';
+  }
+
+  function renderMessageTracking(leads = liveLeads) {
+    const rows = Array.isArray(leads) ? leads : [];
+    const whatsappSent = rows.filter(l => String(l.whatsappStatus || '').toLowerCase().includes('sent')).length;
+    const emailSent = rows.filter(l => String(l.emailStatus || '').toLowerCase().includes('sent')).length;
+    const failed = rows.filter(l => JSON.stringify(l).toLowerCase().includes('failed') || JSON.stringify(l).toLowerCase().includes('error')).length;
+    const ws = document.getElementById('trackWhatsappSent'); if (ws) ws.textContent = whatsappSent;
+    const es = document.getElementById('trackEmailSent'); if (es) es.textContent = emailSent;
+    const fl = document.getElementById('trackFailed'); if (fl) fl.textContent = failed;
+    const ls = document.getElementById('trackLastSync'); if (ls) ls.textContent = new Date().toLocaleString('en-IN');
+    const body = document.getElementById('messageTrackingBody');
+    if (!body) return;
+    body.innerHTML = rows.map(lead => `
+      <tr>
+        <td><strong>${escapeHtml(lead.companyName || '-')}</strong><div class="meta">${escapeHtml(lead.clientPhone || lead.clientEmail || '-')}</div></td>
+        <td>${escapeHtml(lead.invoiceId || '-')}</td>
+        <td><span class="pill ${messageStatusClass(lead.whatsappStatus)}">${escapeHtml(lead.whatsappStatus || 'Not Sent')}</span></td>
+        <td>${escapeHtml(lead.whatsappSentAt || '-')}</td>
+        <td>${escapeHtml(lead.whatsappMessageId || '-')}</td>
+        <td>${escapeHtml(lead.emailStatus || 'Not Sent')}</td>
+        <td>${escapeHtml(lead.lastActivity || '-')}</td>
+      </tr>`).join('');
+  }
+
   function refreshLeadDirectories() {
     renderClientCards(liveLeads);
     renderInvoiceList(liveLeads);
     renderAnalystCards(liveLeads);
+    renderMessageTracking(liveLeads);
   }
 
   function addLeadToDirectories(lead) {
@@ -2690,7 +2775,7 @@
     });
   }
 
-  async function sendInvoicePdfToN8n(payload, mode = 'send_invoice_pdf') {
+  async function sendInvoicePdfToN8n(payload, mode = 'send_invoice') {
     const url = getSavedWebhookUrl();
     if (!url) throw new Error('n8n webhook URL is not configured');
     const pdfBlob = await createInvoicePdfBlob(payload);
@@ -2707,7 +2792,11 @@
       sendEmail: true,
       sendClientEmail: true,
       sendInternalEmail: false,
-      recipientRule: 'client_invoice_only'
+      recipientRule: 'client_invoice_only',
+      companyEmail: payload.companyEmail || payload.internalEmail || 'pkoffice1994@gmail.com',
+      internalEmail: payload.internalEmail || payload.companyEmail || 'pkoffice1994@gmail.com',
+      messageRule: 'CLIENT_ONLY_INVOICE_EMAIL_TWILIO_WHATSAPP',
+      clientPhone: String(payload.clientPhone || '').replace(/[^0-9]/g, '').startsWith('91') ? String(payload.clientPhone || '').replace(/[^0-9]/g, '') : ('91' + String(payload.clientPhone || '').replace(/[^0-9]/g, ''))
     };
     return sendDashboardWebhook(finalPayload, url);
   }
@@ -2754,13 +2843,18 @@
     const payload = getCurrentInvoicePayloadFromModal();
     _lastInvoicePayload = payload;
     if (invoiceStatusText) {
-      invoiceStatusText.textContent = 'Sending invoice PDF to n8n for WhatsApp + Email...';
+      invoiceStatusText.textContent = 'Sending invoice to n8n for Twilio WhatsApp + client email...';
       invoiceStatusText.style.color = '';
     }
     try {
-      await sendInvoicePdfToN8n(payload, 'send_invoice_pdf');
+      const n8nResult = await sendInvoicePdfToN8n(payload, 'send_invoice');
+      payload.whatsappStatus = n8nResult?.whatsappStatus || 'Sent / Check n8n';
+      payload.whatsappSentAt = new Date().toLocaleString('en-IN');
+      payload.whatsappMessageId = n8nResult?.whatsappMessageId || n8nResult?.messageSid || payload.whatsappMessageId || '';
+      payload.emailStatus = 'Invoice Email Sent';
+      payload.lastActivity = 'Invoice sent via n8n';
       if (invoiceStatusText) {
-        invoiceStatusText.textContent = '✓ Sent to n8n. WhatsApp PDF + Email flow triggered.';
+        invoiceStatusText.textContent = '✓ Sent to n8n. Twilio WhatsApp + client email triggered.';
         invoiceStatusText.style.color = 'var(--green)';
       }
       showToast('Invoice PDF sent to n8n ✓');
