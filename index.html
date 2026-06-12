@@ -2715,15 +2715,14 @@
 
   function createInvoicePdfElement(payload) {
     const wrapper = document.createElement('div');
-    wrapper.style.position = 'fixed';
-    wrapper.style.left = '0';
+    wrapper.style.position = 'absolute';
+    wrapper.style.left = '-10000px';
     wrapper.style.top = '0';
     wrapper.style.width = '820px';
     wrapper.style.minHeight = '1120px';
     wrapper.style.background = '#ffffff';
     wrapper.style.padding = '24px';
     wrapper.style.zIndex = '999999';
-    wrapper.style.opacity = '0';
     wrapper.style.pointerEvents = 'none';
     wrapper.style.overflow = 'hidden';
     wrapper.style.color = '#172033';
@@ -2849,6 +2848,9 @@
       if (invoiceStatusText) {
         invoiceStatusText.textContent = 'n8n send failed. Check webhook URL / n8n execution / Twilio media setup.';
         invoiceStatusText.style.color = 'var(--red)';
+      }
+      if (payload.whatsappUrl) {
+        window.open(payload.whatsappUrl, '_blank', 'noopener,noreferrer');
       }
       showToast('n8n send failed');
     }

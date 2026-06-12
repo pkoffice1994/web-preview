@@ -978,7 +978,7 @@
       "main": [
         [
           {
-            "node": "SHEET Log Ping",
+            "node": "Respond Ping",
             "type": "main",
             "index": 0
           }
