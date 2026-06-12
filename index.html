@@ -1711,6 +1711,12 @@
   }
   function getActiveWebhookUrl() {
     const saved = getSavedWebhookUrl();
+    if (isHostedDashboard()) {
+      if (saved && isRelativeWebhookUrl(saved)) return saved;
+      const fallback = getDefaultWebhookUrl();
+      saveWebhookUrl(fallback);
+      return fallback;
+    }
     if (saved && !(isLocalWebhookUrl(saved) && !isLocalDashboard())) return saved;
     const fallback = getDefaultWebhookUrl();
     saveWebhookUrl(fallback);
@@ -3363,89 +3369,6 @@
   window.ktTestN8n = function(){ return sendDashboardWebhook({ action:'ping', ping:true, source:'dashboard-test', submittedAt:new Date().toISOString(), companyName:'Client', budget:0 }, getActiveWebhookUrl()); };
 
 
-  // === FINAL SAME-DESIGN FIX: webhook, PDF, invoice WhatsApp payload ===
-  (function(){
-    const LIVE_WEBHOOK = 'https://pawankumar1234.app.n8n.cloud/webhook/collect-requirement';
-    try {
-      if (!getSavedWebhookUrl() || getSavedWebhookUrl().includes('/workflow/') || getSavedWebhookUrl().includes('localhost') || getSavedWebhookUrl().includes('127.0.0.1')) {
-        saveWebhookUrl(LIVE_WEBHOOK);
-      }
-      const wh1 = document.getElementById('settingsWebhookUrl');
-      const wh2 = document.getElementById('n8nWebhookUrl');
-      if (wh1) wh1.value = getActiveWebhookUrl();
-      if (wh2) wh2.value = getActiveWebhookUrl();
-      updateWebhookStatus(`Connected · ${getActiveWebhookUrl()}`, 'success');
-    } catch(e) { console.warn('Webhook prefill failed', e); }
-
-    const originalSendLeadToWebhook = sendLeadToWebhook;
-    sendLeadToWebhook = async function(payload, url) {
-      const finalUrl = url || getActiveWebhookUrl() || LIVE_WEBHOOK;
-      if (!finalUrl || finalUrl.includes('/workflow/')) throw new Error('Use webhook URL, not workflow URL');
-      const cleanPhone = String(payload.clientPhone || payload.phone || '').replace(/[^0-9]/g,'');
-      const normalized = {
-        ...payload,
-        companyName: payload.companyName || payload.comapny_name || payload.company_name || 'Client',
-        ownerName: payload.ownerName || payload.owner || '',
-        clientEmail: payload.clientEmail || payload.email || '',
-        clientPhone: cleanPhone && cleanPhone.startsWith('91') ? cleanPhone : (cleanPhone ? '91' + cleanPhone : ''),
-        serviceType: payload.serviceType || payload.service || 'General Project',
-        leadSource: payload.leadSource || payload.source || 'Dashboard',
-        budget: Number(String(payload.budget ?? payload.amount ?? 0).replace(/[^0-9.-]/g,'')) || 0,
-        paidAmount: Number(String(payload.paidAmount ?? payload.advance ?? 0).replace(/[^0-9.-]/g,'')) || 0,
-        invoiceId: payload.invoiceId || ('INV-' + Date.now()),
-        internalEmail: payload.internalEmail || payload.companyEmail || KRISCENT_INTERNAL_EMAIL,
-        companyEmail: payload.companyEmail || payload.internalEmail || KRISCENT_INTERNAL_EMAIL,
-        submittedAt: payload.submittedAt || new Date().toISOString()
-      };
-      normalized.balanceDue = Math.max(0, Number(normalized.budget||0) - Number(normalized.paidAmount||0));
-      normalized.twilioTo = normalized.clientPhone ? 'whatsapp:+' + normalized.clientPhone : '';
-      normalized.whatsappMessage = normalized.whatsappMessage || `Invoice Ready\nInvoice ID: ${normalized.invoiceId}\nCompany: ${normalized.companyName}\nService: ${normalized.serviceType}\nTotal: ₹${normalized.budget}\nPaid: ₹${normalized.paidAmount}\nBalance: ₹${normalized.balanceDue}\n\nKriscent Techno Hub`;
-      const res = await fetch(finalUrl, { method:'POST', headers:{'Content-Type':'text/plain;charset=UTF-8'}, body: JSON.stringify(normalized) });
-      let data = {};
-      try { data = await res.json(); } catch { try { data = { text: await res.text() }; } catch {} }
-      if (!res.ok || data.ok === false) throw new Error(data.message || data.error || `Webhook failed ${res.status}`);
-      return data;
-    };
-    sendDashboardWebhook = function(payload, url) { return sendLeadToWebhook(payload, url || getActiveWebhookUrl()); };
-
-    // Stronger PDF generation: white A4 canvas, not hidden behind dashboard.
-    createInvoicePdfElement = function(payload) {
-      const wrapper = document.createElement('div');
-      wrapper.style.position = 'absolute';
-      wrapper.style.left = '0';
-      wrapper.style.top = '0';
-      wrapper.style.transform = 'translateX(-12000px)';
-      wrapper.style.width = '820px';
-      wrapper.style.minHeight = '1120px';
-      wrapper.style.background = '#ffffff';
-      wrapper.style.padding = '24px';
-      wrapper.style.zIndex = '999999';
-      wrapper.style.color = '#111827';
-      wrapper.style.fontFamily = 'Arial, sans-serif';
-      wrapper.style.webkitPrintColorAdjust = 'exact';
-      wrapper.style.printColorAdjust = 'exact';
-      wrapper.innerHTML = buildInvoiceMarkup(payload);
-      document.body.appendChild(wrapper);
-      return wrapper;
-    };
-
-    createInvoicePdfBlob = async function(payload) {
-      if (!window.html2pdf) throw new Error('PDF library not loaded');
-      const wrapper = createInvoicePdfElement(payload);
-      await new Promise(resolve => setTimeout(resolve, 350));
-      try {
-        return await window.html2pdf().set({
-          margin: 8,
-          filename: getInvoicePdfFileName(payload),
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, scrollX: 0, scrollY: 0 },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        }).from(wrapper).outputPdf('blob');
-      } finally { wrapper.remove(); }
-    };
-
-    window.ktTestN8n = function(){ return sendDashboardWebhook({ action:'ping', ping:true, source:'dashboard-test', companyName:'Client', budget:0 }, getActiveWebhookUrl()); };
-  })();
 </script>
 </body>
 </html>
