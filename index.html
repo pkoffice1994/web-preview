@@ -2715,15 +2715,17 @@
 
   function createInvoicePdfElement(payload) {
     const wrapper = document.createElement('div');
-    wrapper.style.position = 'absolute';
+    wrapper.style.position = 'fixed';
     wrapper.style.left = '0';
     wrapper.style.top = '0';
-    wrapper.style.transform = 'translateX(-12000px)';
     wrapper.style.width = '820px';
     wrapper.style.minHeight = '1120px';
     wrapper.style.background = '#ffffff';
     wrapper.style.padding = '24px';
     wrapper.style.zIndex = '999999';
+    wrapper.style.opacity = '0';
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.overflow = 'hidden';
     wrapper.style.color = '#172033';
     wrapper.style.fontFamily = 'Arial, sans-serif';
     wrapper.style.webkitPrintColorAdjust = 'exact';
@@ -2778,7 +2780,8 @@
       invoiceStatus: payload.invoiceStatus || 'Sent',
       pdfFileName: getInvoicePdfFileName(payload),
       invoicePdfBase64: pdfBase64,
-      invoiceHtml: buildInvoiceDocument(payload),
+      invoiceHtml: payload.emailHtml || buildInvoiceEmail(payload),
+      invoiceDocumentHtml: buildInvoiceDocument(payload),
       whatsappMode: 'n8n_api',
       sendWhatsapp: true,
       sendEmail: true,

@@ -1,0 +1,1222 @@
+{
+  "name": "Kriscent FINAL STABLE - Append Sheet HTML Gmail WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "collect-requirement",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "22c1ab32-c9b7-4b28-9bb0-419c903dc43a",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nlet body = $json.body || $json;\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch(e) { body = { rawBody: body }; } }\nfunction t(v,f=''){ return (v===undefined || v===null || String(v).trim()==='') ? f : String(v).trim(); }\nfunction n(v,f=0){ const x=Number(String(v??f).replace(/[^0-9.-]/g,'')); return Number.isFinite(x)?x:f; }\nfunction ph(v){ let p=String(v||'').replace(/[^0-9]/g,''); if(p && !p.startsWith('91')) p='91'+p; return p; }\nconst action=t(body.action,'ping');\nconst budget=n(body.budget ?? body.amount ?? body.projectBudget ?? body.totalAmount ?? body.cost ?? body.price,0);\nconst paidAmount=n(body.paidAmount ?? body.advance ?? body.amountPaid,0);\nconst balanceDue=Math.max(0,budget-paidAmount);\nconst companyName=t(body.companyName || body.comapny_name || body.company_name || body.clientName,'Client');\nconst ownerName=t(body.ownerName || body.owner || body.assignedTo,'');\nconst clientEmail=t(body.clientEmail || body.email,'');\nconst clientPhone=ph(body.clientPhone || body.phone || body.whatsapp);\nconst serviceType=t(body.serviceType || body.service || body.projectType,'General Project');\nconst invoiceId=t(body.invoiceId || body.invoiceNo, 'INV-'+Date.now());\nconst internalEmail=t(body.internalEmail || body.companyEmail,'pkoffice1994@gmail.com');\nconst progress=n(body.workCompletedPercent || body.progress, action==='project_completed'?100:0);\nconst completed = action==='project_completed' || progress>=100 || String(body.workStatus||'').toLowerCase().includes('complete');\nconst leadStatus=t(body.leadStatus || body.status, completed?'Completed':'New');\nconst workStatus=t(body.workStatus, completed?'Completed':'New Lead');\nconst leadNote=t(body.leadNote || body.analystNotes || body.notes,'');\nconst sheetValues = {\n  comapny_name: companyName,\n  ownerName,\n  clientEmail,\n  clientPhone,\n  serviceType,\n  leadSource: t(body.leadSource || body.source,'Dashboard'),\n  budget,\n  leadStatus,\n  leadNote,\n  submittedAt: t(body.submittedAt,new Date().toISOString()),\n  assignedTo: t(body.assignedTo || body.assignee,'Kriscent Team'),\n  workStatus,\n  workCompletedPercent: completed ? 100 : progress,\n  lastFollowUpDate: t(body.lastFollowUpDate,new Date().toISOString().slice(0,10)),\n  nextFollowUpDate: t(body.nextFollowUpDate || body.followUpDate,''),\n  analystNotes: leadNote,\n  invoiceId,\n  invoiceStatus: t(body.invoiceStatus, action==='send_invoice_pdf'?'Sent':'Draft'),\n  paidAmount,\n  invoiceDueDate: t(body.invoiceDueDate || body.dueDate,''),\n  whatsappStatus: t(body.whatsappStatus,'Pending'),\n  whatsappSentAt: t(body.whatsappSentAt,''),\n  whatsappMessageId: t(body.whatsappMessageId,''),\n  emailStatus: t(body.emailStatus,'Pending'),\n  lastActivity: t(body.lastActivity, 'n8n action: '+action)\n};\nconst internalHtml = body.mailHtml || body.emailHtml || `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Kriscent Dashboard Update</h2><p><b>Action:</b> ${action}</p><p><b>Company:</b> ${companyName}</p><p><b>Service:</b> ${serviceType}</p><p><b>Budget:</b> \u20b9${budget}</p><p><b>Progress:</b> ${sheetValues.workCompletedPercent}%</p><p><b>Notes:</b> ${leadNote}</p></div></div>`;\nconst clientInvoiceHtml = body.emailHtml || body.invoiceHtml || `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Invoice Ready</h2><p>Dear ${ownerName || 'Client'},</p><p>Your invoice is ready from <b>Kriscent Techno Hub</b>.</p><table style=\"width:100%;border-collapse:collapse\"><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Invoice ID</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">${invoiceId}</td></tr><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Total</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">\u20b9${budget}</td></tr><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Balance</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">\u20b9${balanceDue}</td></tr></table><p>Regards,<br>Kriscent Techno Hub</p></div></div>`;\nconst completedHtml = `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Project Completed</h2><p>Dear ${ownerName || 'Client'},</p><p>Your project <b>${serviceType}</b> has been completed successfully.</p><p>Regards,<br>Kriscent Techno Hub</p></div></div>`;\nconst whatsappMessage = body.whatsappMessage || `Invoice Ready\\nInvoice ID: ${invoiceId}\\nCompany: ${companyName}\\nService: ${serviceType}\\nTotal: \u20b9${budget}\\nPaid: \u20b9${paidAmount}\\nBalance: \u20b9${balanceDue}\\n\\nKriscent Techno Hub`;\nreturn [{ json: { ...body, ...sheetValues, action, companyName, ownerName, internalEmail, companyEmail: internalEmail, balanceDue, internalHtml, clientInvoiceHtml, completedHtml, whatsappMessage, twilioFrom: t(body.twilioFrom,'whatsapp:+14155238886'), twilioTo: clientPhone ? 'whatsapp:+'+clientPhone : '' } }];\n"
+      },
+      "id": "df6f5c60-95db-499b-a8e8-9fae00aff2e4",
+      "name": "Normalize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "ping",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ping"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "new_lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "new_lead"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "add_project",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "add_project"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "update_work",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "update_work"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "follow_up",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "follow_up"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "send_invoice_pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "send_invoice_pdf"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "project_completed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "project_completed"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "e42a7821-63a9-4e6b-b2e2-d0d717cfdd75",
+      "name": "Switch Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -700,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1809797896,
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
+            "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
+            "clientEmail": "={{$node['Normalize Payload'].json.clientEmail}}",
+            "clientPhone": "={{$node['Normalize Payload'].json.clientPhone}}",
+            "serviceType": "={{$node['Normalize Payload'].json.serviceType}}",
+            "leadSource": "={{$node['Normalize Payload'].json.leadSource}}",
+            "budget": "={{$node['Normalize Payload'].json.budget}}",
+            "leadStatus": "={{$node['Normalize Payload'].json.leadStatus}}",
+            "leadNote": "={{$node['Normalize Payload'].json.leadNote}}",
+            "submittedAt": "={{$node['Normalize Payload'].json.submittedAt}}",
+            "assignedTo": "={{$node['Normalize Payload'].json.assignedTo}}",
+            "workStatus": "={{$node['Normalize Payload'].json.workStatus}}",
+            "workCompletedPercent": "={{$node['Normalize Payload'].json.workCompletedPercent}}",
+            "lastFollowUpDate": "={{$node['Normalize Payload'].json.lastFollowUpDate}}",
+            "nextFollowUpDate": "={{$node['Normalize Payload'].json.nextFollowUpDate}}",
+            "analystNotes": "={{$node['Normalize Payload'].json.analystNotes}}",
+            "invoiceId": "={{$node['Normalize Payload'].json.invoiceId}}",
+            "invoiceStatus": "={{$node['Normalize Payload'].json.invoiceStatus}}",
+            "paidAmount": "={{$node['Normalize Payload'].json.paidAmount}}",
+            "invoiceDueDate": "={{$node['Normalize Payload'].json.invoiceDueDate}}",
+            "whatsappStatus": "={{$node['Normalize Payload'].json.whatsappStatus}}",
+            "whatsappSentAt": "={{$node['Normalize Payload'].json.whatsappSentAt}}",
+            "whatsappMessageId": "={{$node['Normalize Payload'].json.whatsappMessageId}}",
+            "emailStatus": "={{$node['Normalize Payload'].json.emailStatus}}",
+            "lastActivity": "={{$node['Normalize Payload'].json.lastActivity}}"
+          }
+        },
+        "columnToMatchOn": "submittedAt",
+        "valueToMatchOn": "={{$node['Normalize Payload'].json.submittedAt}}",
+        "options": {}
+      },
+      "id": "c33f73de-f635-41ca-9e2c-f614b7a46fa1",
+      "name": "SHEET Log Ping",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -450,
+        -500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.internalEmail}}",
+        "subject": "Kriscent n8n Test Successful",
+        "message": "={{$node['Normalize Payload'].json.internalHtml}}",
+        "options": {}
+      },
+      "id": "ec3fc061-6d11-472d-9327-b8818fca6256",
+      "name": "MAIL Ping HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        -500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"action\":\"ping\"}",
+        "options": {}
+      },
+      "id": "ff23ab8b-89f6-4781-b63d-03394c385ddb",
+      "name": "Respond Ping",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        60,
+        -500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1809797896,
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
+            "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
+            "clientEmail": "={{$node['Normalize Payload'].json.clientEmail}}",
+            "clientPhone": "={{$node['Normalize Payload'].json.clientPhone}}",
+            "serviceType": "={{$node['Normalize Payload'].json.serviceType}}",
+            "leadSource": "={{$node['Normalize Payload'].json.leadSource}}",
+            "budget": "={{$node['Normalize Payload'].json.budget}}",
+            "leadStatus": "={{$node['Normalize Payload'].json.leadStatus}}",
+            "leadNote": "={{$node['Normalize Payload'].json.leadNote}}",
+            "submittedAt": "={{$node['Normalize Payload'].json.submittedAt}}",
+            "assignedTo": "={{$node['Normalize Payload'].json.assignedTo}}",
+            "workStatus": "={{$node['Normalize Payload'].json.workStatus}}",
+            "workCompletedPercent": "={{$node['Normalize Payload'].json.workCompletedPercent}}",
+            "lastFollowUpDate": "={{$node['Normalize Payload'].json.lastFollowUpDate}}",
+            "nextFollowUpDate": "={{$node['Normalize Payload'].json.nextFollowUpDate}}",
+            "analystNotes": "={{$node['Normalize Payload'].json.analystNotes}}",
+            "invoiceId": "={{$node['Normalize Payload'].json.invoiceId}}",
+            "invoiceStatus": "={{$node['Normalize Payload'].json.invoiceStatus}}",
+            "paidAmount": "={{$node['Normalize Payload'].json.paidAmount}}",
+            "invoiceDueDate": "={{$node['Normalize Payload'].json.invoiceDueDate}}",
+            "whatsappStatus": "={{$node['Normalize Payload'].json.whatsappStatus}}",
+            "whatsappSentAt": "={{$node['Normalize Payload'].json.whatsappSentAt}}",
+            "whatsappMessageId": "={{$node['Normalize Payload'].json.whatsappMessageId}}",
+            "emailStatus": "={{$node['Normalize Payload'].json.emailStatus}}",
+            "lastActivity": "={{$node['Normalize Payload'].json.lastActivity}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "03c06d11-0b2a-478c-ae0d-5cfd23f45d6a",
+      "name": "SHEET Append New Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -450,
+        -330
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.internalEmail}}",
+        "subject": "={{'New Lead | '+$node['Normalize Payload'].json.companyName}}",
+        "message": "={{$node['Normalize Payload'].json.internalHtml}}",
+        "options": {}
+      },
+      "id": "f6a23d94-7a63-4104-a4f8-7ac783a30896",
+      "name": "MAIL Internal New Lead HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        -330
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"action\":\"new_lead\"}",
+        "options": {}
+      },
+      "id": "c076b8cd-2fe8-4ddb-89a4-7147b0bd00b6",
+      "name": "Respond New Lead",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        60,
+        -330
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1809797896,
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
+            "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
+            "clientEmail": "={{$node['Normalize Payload'].json.clientEmail}}",
+            "clientPhone": "={{$node['Normalize Payload'].json.clientPhone}}",
+            "serviceType": "={{$node['Normalize Payload'].json.serviceType}}",
+            "leadSource": "={{$node['Normalize Payload'].json.leadSource}}",
+            "budget": "={{$node['Normalize Payload'].json.budget}}",
+            "leadStatus": "={{$node['Normalize Payload'].json.leadStatus}}",
+            "leadNote": "={{$node['Normalize Payload'].json.leadNote}}",
+            "submittedAt": "={{$node['Normalize Payload'].json.submittedAt}}",
+            "assignedTo": "={{$node['Normalize Payload'].json.assignedTo}}",
+            "workStatus": "={{$node['Normalize Payload'].json.workStatus}}",
+            "workCompletedPercent": "={{$node['Normalize Payload'].json.workCompletedPercent}}",
+            "lastFollowUpDate": "={{$node['Normalize Payload'].json.lastFollowUpDate}}",
+            "nextFollowUpDate": "={{$node['Normalize Payload'].json.nextFollowUpDate}}",
+            "analystNotes": "={{$node['Normalize Payload'].json.analystNotes}}",
+            "invoiceId": "={{$node['Normalize Payload'].json.invoiceId}}",
+            "invoiceStatus": "={{$node['Normalize Payload'].json.invoiceStatus}}",
+            "paidAmount": "={{$node['Normalize Payload'].json.paidAmount}}",
+            "invoiceDueDate": "={{$node['Normalize Payload'].json.invoiceDueDate}}",
+            "whatsappStatus": "={{$node['Normalize Payload'].json.whatsappStatus}}",
+            "whatsappSentAt": "={{$node['Normalize Payload'].json.whatsappSentAt}}",
+            "whatsappMessageId": "={{$node['Normalize Payload'].json.whatsappMessageId}}",
+            "emailStatus": "={{$node['Normalize Payload'].json.emailStatus}}",
+            "lastActivity": "={{$node['Normalize Payload'].json.lastActivity}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "af57cf3f-2d8f-400f-8d7a-c373b93bd8ef",
+      "name": "SHEET Append Project Added",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -450,
+        -160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.internalEmail}}",
+        "subject": "={{'Project Added | '+$node['Normalize Payload'].json.companyName}}",
+        "message": "={{$node['Normalize Payload'].json.internalHtml}}",
+        "options": {}
+      },
+      "id": "72f48ff1-7ba1-4a37-9f41-4cdfb1cd095e",
+      "name": "MAIL Internal Project Added HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        -160
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"action\":\"add_project\"}",
+        "options": {}
+      },
+      "id": "72d7515f-b1fe-447f-a667-6d8551a3d66a",
+      "name": "Respond Project Added",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        60,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1809797896,
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
+            "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
+            "clientEmail": "={{$node['Normalize Payload'].json.clientEmail}}",
+            "clientPhone": "={{$node['Normalize Payload'].json.clientPhone}}",
+            "serviceType": "={{$node['Normalize Payload'].json.serviceType}}",
+            "leadSource": "={{$node['Normalize Payload'].json.leadSource}}",
+            "budget": "={{$node['Normalize Payload'].json.budget}}",
+            "leadStatus": "={{$node['Normalize Payload'].json.leadStatus}}",
+            "leadNote": "={{$node['Normalize Payload'].json.leadNote}}",
+            "submittedAt": "={{$node['Normalize Payload'].json.submittedAt}}",
+            "assignedTo": "={{$node['Normalize Payload'].json.assignedTo}}",
+            "workStatus": "={{$node['Normalize Payload'].json.workStatus}}",
+            "workCompletedPercent": "={{$node['Normalize Payload'].json.workCompletedPercent}}",
+            "lastFollowUpDate": "={{$node['Normalize Payload'].json.lastFollowUpDate}}",
+            "nextFollowUpDate": "={{$node['Normalize Payload'].json.nextFollowUpDate}}",
+            "analystNotes": "={{$node['Normalize Payload'].json.analystNotes}}",
+            "invoiceId": "={{$node['Normalize Payload'].json.invoiceId}}",
+            "invoiceStatus": "={{$node['Normalize Payload'].json.invoiceStatus}}",
+            "paidAmount": "={{$node['Normalize Payload'].json.paidAmount}}",
+            "invoiceDueDate": "={{$node['Normalize Payload'].json.invoiceDueDate}}",
+            "whatsappStatus": "={{$node['Normalize Payload'].json.whatsappStatus}}",
+            "whatsappSentAt": "={{$node['Normalize Payload'].json.whatsappSentAt}}",
+            "whatsappMessageId": "={{$node['Normalize Payload'].json.whatsappMessageId}}",
+            "emailStatus": "={{$node['Normalize Payload'].json.emailStatus}}",
+            "lastActivity": "={{$node['Normalize Payload'].json.lastActivity}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "40492235-8266-48b0-8bb5-46d29678012b",
+      "name": "SHEET Upsert Work Update",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -450,
+        20
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.internalEmail}}",
+        "subject": "={{'Work Update | '+$node['Normalize Payload'].json.companyName}}",
+        "message": "={{$node['Normalize Payload'].json.internalHtml}}",
+        "options": {}
+      },
+      "id": "cf28686b-b84a-41ee-8f8a-dfab03fa4f51",
+      "name": "MAIL Internal Work Update HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        20
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"action\":\"update_work\"}",
+        "options": {}
+      },
+      "id": "86c185ea-90b1-4353-8680-013dc1c42a5e",
+      "name": "Respond Work Update",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        60,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1809797896,
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
+            "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
+            "clientEmail": "={{$node['Normalize Payload'].json.clientEmail}}",
+            "clientPhone": "={{$node['Normalize Payload'].json.clientPhone}}",
+            "serviceType": "={{$node['Normalize Payload'].json.serviceType}}",
+            "leadSource": "={{$node['Normalize Payload'].json.leadSource}}",
+            "budget": "={{$node['Normalize Payload'].json.budget}}",
+            "leadStatus": "={{$node['Normalize Payload'].json.leadStatus}}",
+            "leadNote": "={{$node['Normalize Payload'].json.leadNote}}",
+            "submittedAt": "={{$node['Normalize Payload'].json.submittedAt}}",
+            "assignedTo": "={{$node['Normalize Payload'].json.assignedTo}}",
+            "workStatus": "={{$node['Normalize Payload'].json.workStatus}}",
+            "workCompletedPercent": "={{$node['Normalize Payload'].json.workCompletedPercent}}",
+            "lastFollowUpDate": "={{$node['Normalize Payload'].json.lastFollowUpDate}}",
+            "nextFollowUpDate": "={{$node['Normalize Payload'].json.nextFollowUpDate}}",
+            "analystNotes": "={{$node['Normalize Payload'].json.analystNotes}}",
+            "invoiceId": "={{$node['Normalize Payload'].json.invoiceId}}",
+            "invoiceStatus": "={{$node['Normalize Payload'].json.invoiceStatus}}",
+            "paidAmount": "={{$node['Normalize Payload'].json.paidAmount}}",
+            "invoiceDueDate": "={{$node['Normalize Payload'].json.invoiceDueDate}}",
+            "whatsappStatus": "={{$node['Normalize Payload'].json.whatsappStatus}}",
+            "whatsappSentAt": "={{$node['Normalize Payload'].json.whatsappSentAt}}",
+            "whatsappMessageId": "={{$node['Normalize Payload'].json.whatsappMessageId}}",
+            "emailStatus": "={{$node['Normalize Payload'].json.emailStatus}}",
+            "lastActivity": "={{$node['Normalize Payload'].json.lastActivity}}"
+          }
+        },
+        "columnToMatchOn": "submittedAt",
+        "valueToMatchOn": "={{$node['Normalize Payload'].json.submittedAt}}",
+        "options": {}
+      },
+      "id": "0a7cc4cf-b6fb-4cff-bf7f-6aa6afc5edcb",
+      "name": "SHEET Upsert Follow Up",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -450,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.internalEmail}}",
+        "subject": "={{'Follow Up | '+$node['Normalize Payload'].json.companyName}}",
+        "message": "={{$node['Normalize Payload'].json.internalHtml}}",
+        "options": {}
+      },
+      "id": "bba57817-d3af-4bba-84d9-c025d34d9e3c",
+      "name": "MAIL Internal Follow Up HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"action\":\"follow_up\"}",
+        "options": {}
+      },
+      "id": "30e729d7-f34f-41be-80d3-ca92ef7515db",
+      "name": "Respond Follow Up",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        60,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.clientEmail}}",
+        "subject": "={{'Invoice Ready | '+$node['Normalize Payload'].json.companyName+' | '+$node['Normalize Payload'].json.invoiceId}}",
+        "message": "={{$node['Normalize Payload'].json.clientInvoiceHtml}}",
+        "options": {}
+      },
+      "id": "355fcc07-8c57-404f-8c5a-e878c3a7aa67",
+      "name": "MAIL Client Invoice HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -450,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1809797896,
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
+            "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
+            "clientEmail": "={{$node['Normalize Payload'].json.clientEmail}}",
+            "clientPhone": "={{$node['Normalize Payload'].json.clientPhone}}",
+            "serviceType": "={{$node['Normalize Payload'].json.serviceType}}",
+            "leadSource": "={{$node['Normalize Payload'].json.leadSource}}",
+            "budget": "={{$node['Normalize Payload'].json.budget}}",
+            "leadStatus": "={{$node['Normalize Payload'].json.leadStatus}}",
+            "leadNote": "={{$node['Normalize Payload'].json.leadNote}}",
+            "submittedAt": "={{$node['Normalize Payload'].json.submittedAt}}",
+            "assignedTo": "={{$node['Normalize Payload'].json.assignedTo}}",
+            "workStatus": "={{$node['Normalize Payload'].json.workStatus}}",
+            "workCompletedPercent": "={{$node['Normalize Payload'].json.workCompletedPercent}}",
+            "lastFollowUpDate": "={{$node['Normalize Payload'].json.lastFollowUpDate}}",
+            "nextFollowUpDate": "={{$node['Normalize Payload'].json.nextFollowUpDate}}",
+            "analystNotes": "={{$node['Normalize Payload'].json.analystNotes}}",
+            "invoiceId": "={{$node['Normalize Payload'].json.invoiceId}}",
+            "invoiceStatus": "={{$node['Normalize Payload'].json.invoiceStatus}}",
+            "paidAmount": "={{$node['Normalize Payload'].json.paidAmount}}",
+            "invoiceDueDate": "={{$node['Normalize Payload'].json.invoiceDueDate}}",
+            "whatsappStatus": "={{$node['Normalize Payload'].json.whatsappStatus}}",
+            "whatsappSentAt": "={{$node['Normalize Payload'].json.whatsappSentAt}}",
+            "whatsappMessageId": "={{$node['Normalize Payload'].json.whatsappMessageId}}",
+            "emailStatus": "={{$node['Normalize Payload'].json.emailStatus}}",
+            "lastActivity": "={{$node['Normalize Payload'].json.lastActivity}}"
+          }
+        },
+        "columnToMatchOn": "submittedAt",
+        "valueToMatchOn": "={{$node['Normalize Payload'].json.submittedAt}}",
+        "options": {}
+      },
+      "id": "d3d7bab5-e963-4b51-b5c1-bba1e0d4af5a",
+      "name": "SHEET Upsert Invoice Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -200,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "from": "={{$node['Normalize Payload'].json.twilioFrom}}",
+        "to": "={{$node['Normalize Payload'].json.twilioTo}}",
+        "message": "={{$node['Normalize Payload'].json.whatsappMessage}}",
+        "options": {}
+      },
+      "id": "28755dd8-340c-4299-a53c-631a1092be01",
+      "name": "TWILIO WhatsApp Invoice",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        60,
+        400
+      ],
+      "credentials": {
+        "twilioApi": {
+          "id": "REPLACE_TWILIO_CREDENTIAL_ID",
+          "name": "Twilio account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.internalEmail}}",
+        "subject": "={{'Invoice Sent | '+$node['Normalize Payload'].json.companyName}}",
+        "message": "={{$node['Normalize Payload'].json.internalHtml}}",
+        "options": {}
+      },
+      "id": "8ed74aca-586e-43ab-b300-f867f6d23b54",
+      "name": "MAIL Internal Invoice Copy HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        320,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"action\":\"send_invoice_pdf\",\"message\":\"Invoice branch completed\"}",
+        "options": {}
+      },
+      "id": "334dc8dd-a0b8-4301-ae57-1561b83374ff",
+      "name": "Respond Invoice",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        580,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{$node['Normalize Payload'].json.clientEmail}}",
+        "subject": "={{'Project Completed | '+$node['Normalize Payload'].json.companyName}}",
+        "message": "={{$node['Normalize Payload'].json.completedHtml}}",
+        "options": {}
+      },
+      "id": "f4d907ba-416a-4a34-8b1b-10ef64404856",
+      "name": "MAIL Client Completed HTML",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        -450,
+        620
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1809797896,
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
+            "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
+            "clientEmail": "={{$node['Normalize Payload'].json.clientEmail}}",
+            "clientPhone": "={{$node['Normalize Payload'].json.clientPhone}}",
+            "serviceType": "={{$node['Normalize Payload'].json.serviceType}}",
+            "leadSource": "={{$node['Normalize Payload'].json.leadSource}}",
+            "budget": "={{$node['Normalize Payload'].json.budget}}",
+            "leadStatus": "={{$node['Normalize Payload'].json.leadStatus}}",
+            "leadNote": "={{$node['Normalize Payload'].json.leadNote}}",
+            "submittedAt": "={{$node['Normalize Payload'].json.submittedAt}}",
+            "assignedTo": "={{$node['Normalize Payload'].json.assignedTo}}",
+            "workStatus": "={{$node['Normalize Payload'].json.workStatus}}",
+            "workCompletedPercent": "={{$node['Normalize Payload'].json.workCompletedPercent}}",
+            "lastFollowUpDate": "={{$node['Normalize Payload'].json.lastFollowUpDate}}",
+            "nextFollowUpDate": "={{$node['Normalize Payload'].json.nextFollowUpDate}}",
+            "analystNotes": "={{$node['Normalize Payload'].json.analystNotes}}",
+            "invoiceId": "={{$node['Normalize Payload'].json.invoiceId}}",
+            "invoiceStatus": "={{$node['Normalize Payload'].json.invoiceStatus}}",
+            "paidAmount": "={{$node['Normalize Payload'].json.paidAmount}}",
+            "invoiceDueDate": "={{$node['Normalize Payload'].json.invoiceDueDate}}",
+            "whatsappStatus": "={{$node['Normalize Payload'].json.whatsappStatus}}",
+            "whatsappSentAt": "={{$node['Normalize Payload'].json.whatsappSentAt}}",
+            "whatsappMessageId": "={{$node['Normalize Payload'].json.whatsappMessageId}}",
+            "emailStatus": "={{$node['Normalize Payload'].json.emailStatus}}",
+            "lastActivity": "={{$node['Normalize Payload'].json.lastActivity}}"
+          }
+        },
+        "columnToMatchOn": "submittedAt",
+        "valueToMatchOn": "={{$node['Normalize Payload'].json.submittedAt}}",
+        "options": {}
+      },
+      "id": "df04ebde-fabc-4e96-82bf-be796398d2d7",
+      "name": "SHEET Upsert Project Completed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -200,
+        620
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"action\":\"project_completed\"}",
+        "options": {}
+      },
+      "id": "744e36c9-6eb3-4fbc-a6a2-8a69c55bcbb3",
+      "name": "Respond Completed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        60,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":false,\"message\":\"Unknown action\",\"action\":\"{{$node['Normalize Payload'].json.action}}\"}",
+        "options": {}
+      },
+      "id": "fcee5609-97a4-4c04-bd1a-1411c9f35ac4",
+      "name": "Respond Fallback",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -450,
+        820
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Switch Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action": {
+      "main": [
+        [
+          {
+            "node": "SHEET Log Ping",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SHEET Append New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SHEET Append Project Added",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SHEET Upsert Work Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SHEET Upsert Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MAIL Client Invoice HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MAIL Client Completed HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHEET Log Ping": {
+      "main": [
+        [
+          {
+            "node": "MAIL Ping HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Ping HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond Ping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHEET Append New Lead": {
+      "main": [
+        [
+          {
+            "node": "MAIL Internal New Lead HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Internal New Lead HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHEET Append Project Added": {
+      "main": [
+        [
+          {
+            "node": "MAIL Internal Project Added HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Internal Project Added HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond Project Added",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHEET Upsert Work Update": {
+      "main": [
+        [
+          {
+            "node": "MAIL Internal Work Update HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Internal Work Update HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond Work Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHEET Upsert Follow Up": {
+      "main": [
+        [
+          {
+            "node": "MAIL Internal Follow Up HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Internal Follow Up HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Client Invoice HTML": {
+      "main": [
+        [
+          {
+            "node": "SHEET Upsert Invoice Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHEET Upsert Invoice Sent": {
+      "main": [
+        [
+          {
+            "node": "TWILIO WhatsApp Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TWILIO WhatsApp Invoice": {
+      "main": [
+        [
+          {
+            "node": "MAIL Internal Invoice Copy HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Internal Invoice Copy HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAIL Client Completed HTML": {
+      "main": [
+        [
+          {
+            "node": "SHEET Upsert Project Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHEET Upsert Project Completed": {
+      "main": [
+        [
+          {
+            "node": "Respond Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
