@@ -2754,6 +2754,9 @@
         },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
       }).from(wrapper).outputPdf('blob');
+    } catch (error) {
+      console.warn('html2pdf render failed, using jsPDF fallback', error);
+      return createSimpleInvoicePdfBlob(payload);
     } finally {
       wrapper.remove();
     }
@@ -2766,6 +2769,84 @@
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
+  }
+
+  function createSimpleInvoicePdfBlob(payload) {
+    const JsPdf = window.jspdf?.jsPDF;
+    if (!JsPdf) throw new Error('jsPDF fallback not loaded');
+
+    const totalAmount = toMoneyNumber(payload.budget);
+    const paidAmount = toMoneyNumber(payload.paidAmount);
+    const dueAmount = Math.max(0, totalAmount - paidAmount);
+    const doc = new JsPdf({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 42;
+    const contentWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    doc.setFillColor(16, 26, 58);
+    doc.rect(0, 0, pageWidth, 132, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('KRISCENT TECHNO HUB', margin, y);
+    y += 24;
+    doc.setFontSize(26);
+    doc.text('Project Invoice', margin, y);
+    y += 22;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.text(`Invoice ID: ${payload.invoiceId || 'INV-DRAFT'}`, margin, y);
+    doc.text(`Due: ${payload.invoiceDueDate || payload.nextFollowUpDate || '-'}`, pageWidth - margin, y, { align: 'right' });
+
+    y = 164;
+    doc.setTextColor(23, 32, 51);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text(payload.companyName || 'Client', margin, y);
+    y += 20;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+
+    const rows = [
+      ['Owner', payload.ownerName || payload.assignedTo || '-'],
+      ['Client Email', payload.clientEmail || '-'],
+      ['Phone', payload.clientPhone || '-'],
+      ['Service', payload.serviceType || '-'],
+      ['Invoice Status', payload.invoiceStatus || 'Draft'],
+      ['Assigned To', payload.assignedTo || '-'],
+      ['Total Amount', formatMoney(totalAmount)],
+      ['Paid Amount', formatMoney(paidAmount)],
+      ['Balance Due', formatMoney(dueAmount)],
+      ['Due Date', payload.invoiceDueDate || payload.nextFollowUpDate || '-']
+    ];
+
+    rows.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${label}:`, margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(value), margin + 110, y);
+      y += 18;
+    });
+
+    y += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Scope Notes:', margin, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal');
+    const notesLines = doc.splitTextToSize(
+      payload.invoiceNotes || payload.analystNotes || payload.leadNote || 'No scope notes added yet.',
+      contentWidth
+    );
+    doc.text(notesLines, margin, y);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Generated ${new Date().toLocaleString('en-IN')}`, margin, pageHeight - 28);
+    doc.text('Ops dashboard · PDF fallback', pageWidth - margin, pageHeight - 28, { align: 'right' });
+
+    return doc.output('blob');
   }
 
   async function sendInvoicePdfToN8n(payload, mode = 'send_invoice_pdf') {
@@ -2841,6 +2922,9 @@
       if (invoiceStatusText) {
         invoiceStatusText.textContent = '✓ Sent to n8n. WhatsApp PDF + Email flow triggered.';
         invoiceStatusText.style.color = 'var(--green)';
+      }
+      if (payload.whatsappUrl) {
+        window.open(payload.whatsappUrl, '_blank', 'noopener,noreferrer');
       }
       showToast('Invoice PDF sent to n8n ✓');
     } catch (error) {
