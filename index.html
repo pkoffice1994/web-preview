@@ -2753,7 +2753,7 @@
   }
 
   async function sendInvoicePdfToN8n(payload, mode = 'send_invoice_pdf') {
-    const url = getActiveWebhookUrl();
+    const url = isHostedDashboard() ? CLOUD_WEBHOOK_URL : getActiveWebhookUrl();
     if (!url) throw new Error('n8n webhook URL is not configured');
     const pdfBlob = await createInvoicePdfBlob(payload);
     const pdfBase64 = await blobToBase64(pdfBlob);
