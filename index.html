@@ -2007,6 +2007,52 @@
 </html>`;
   }
 
+  function encodeInvoicePdfData(data) {
+    const json = JSON.stringify(data);
+    const bytes = new TextEncoder().encode(json);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function buildInvoicePdfDocumentData(payload) {
+    const totalAmount = toMoneyNumber(payload.budget);
+    const paidAmount = toMoneyNumber(payload.paidAmount);
+    const dueAmount = Math.max(0, totalAmount - paidAmount);
+    return {
+      invoiceId: payload.invoiceId || 'INV-DRAFT',
+      companyName: payload.companyName || 'Client',
+      ownerName: payload.ownerName || payload.assignedTo || '',
+      clientEmail: payload.clientEmail || '',
+      clientPhone: payload.clientPhone || '',
+      serviceType: payload.serviceType || '',
+      invoiceStatus: payload.invoiceStatus || 'Draft',
+      assignedTo: payload.assignedTo || '',
+      totalAmount,
+      paidAmount,
+      dueAmount,
+      invoiceDueDate: payload.invoiceDueDate || payload.nextFollowUpDate || '',
+      notes: String(payload.invoiceNotes || payload.analystNotes || payload.leadNote || 'No scope notes added yet.').slice(0, 1200),
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  function buildInvoicePdfUrl(payload, { download = false } = {}) {
+    if (!isHostedDashboard() || !window.location.origin) return '';
+    try {
+      const url = new URL('/api/invoice-pdf', window.location.origin);
+      url.searchParams.set('data', encodeInvoicePdfData(buildInvoicePdfDocumentData(payload)));
+      if (download) url.searchParams.set('download', '1');
+      return url.toString();
+    } catch (error) {
+      console.warn('Could not build hosted invoice PDF URL', error);
+      return '';
+    }
+  }
+
   function normalizePhoneForWhatsapp(phone) {
     const digits = String(phone || '').replace(/\D/g, '');
     if (!digits) return '';
@@ -2028,7 +2074,7 @@
     const totalAmount = toMoneyNumber(payload.budget);
     const paidAmount = toMoneyNumber(payload.paidAmount);
     const dueAmount = Math.max(0, totalAmount - paidAmount);
-    return [
+    const lines = [
       `Hello ${payload.ownerName || 'there'},`,
       '',
       `Invoice from Kriscent Techno Hub is ready.`,
@@ -2041,7 +2087,12 @@
       `Due Date: ${payload.invoiceDueDate || payload.nextFollowUpDate || '-'}`,
       '',
       `Please confirm once payment is processed.`
-    ].join('\n');
+    ];
+    if (payload.invoicePdfUrl) {
+      lines.push('');
+      lines.push(`Download PDF: ${payload.invoicePdfUrl}`);
+    }
+    return lines.join('\n');
   }
 
   function buildWhatsappUrl(payload) {
@@ -2364,8 +2415,6 @@
       whatsappStatus: 'Pending',
       lastActivity: 'Dashboard invoice prepared'
     };
-    payload.whatsappMessage = buildInvoiceWhatsappText(payload);
-    payload.whatsappUrl = buildWhatsappUrl(payload);
     payload.emailType = 'HTML';
     payload.emailSubject = `Invoice Ready | ${payload.companyName || 'Client'} | ${payload.invoiceId}`;
     payload.emailHtml = buildInvoiceEmail(payload);
@@ -2373,6 +2422,9 @@
     payload.invoiceDocumentHtml = buildInvoiceDocument(payload);
     payload.invoiceFileName = `${String(payload.invoiceId || 'invoice').replace(/[^\w.-]+/g, '-')}.html`;
     payload.invoicePdfFileName = `${String(payload.invoiceId || 'invoice').replace(/[^\w.-]+/g, '-')}.pdf`;
+    payload.invoicePdfUrl = buildInvoicePdfUrl(payload);
+    payload.whatsappMessage = buildInvoiceWhatsappText(payload);
+    payload.whatsappUrl = buildWhatsappUrl(payload);
     payload.driveFolderName = `${payload.companyName || 'Client'} Invoices`;
     payload.mailSubject = payload.emailSubject;
     payload.mailHtml = payload.emailHtml;
@@ -2466,6 +2518,10 @@
     const sameRecord = item => {
       if (normalized.rowNumber) return String(item.rowNumber) === String(normalized.rowNumber);
       if (normalized.requestId) return item.requestId === normalized.requestId;
+      if (normalized.submittedAt) {
+        return String(item.submittedAt || '') === String(normalized.submittedAt)
+          && companyKey(item.companyName) === companyKey(normalized.companyName);
+      }
       return false;
     };
     liveLeads = [normalized, ...liveLeads.filter(item => !sameRecord(item))];
@@ -2735,30 +2791,44 @@
   }
 
   async function createInvoicePdfBlob(payload) {
-    if (!window.html2pdf) throw new Error('PDF library not loaded');
-    const wrapper = createInvoicePdfElement(payload);
-    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 250)));
+    const hostedPdfUrl = buildInvoicePdfUrl(payload, { download: true });
     try {
-      return await window.html2pdf().set({
-        margin: 0.25,
-        filename: getInvoicePdfFileName(payload),
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          windowWidth: 900,
-          scrollX: 0,
-          scrollY: 0
-        },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-      }).from(wrapper).outputPdf('blob');
+      if (hostedPdfUrl) {
+        const response = await fetch(hostedPdfUrl, { cache: 'no-store' });
+        if (!response.ok) throw new Error(`Hosted PDF failed ${response.status}`);
+        const blob = await response.blob();
+        if (blob.size > 512) return blob;
+        throw new Error('Hosted PDF was empty');
+      }
     } catch (error) {
-      console.warn('html2pdf render failed, using jsPDF fallback', error);
+      console.warn('Hosted invoice PDF fetch failed, falling back to client renderer', error);
+    }
+
+    try {
       return createSimpleInvoicePdfBlob(payload);
-    } finally {
-      wrapper.remove();
+    } catch (simpleError) {
+      if (!window.html2pdf) throw simpleError;
+      const wrapper = createInvoicePdfElement(payload);
+      await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 250)));
+      try {
+        return await window.html2pdf().set({
+          margin: 0.25,
+          filename: getInvoicePdfFileName(payload),
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            windowWidth: 900,
+            scrollX: 0,
+            scrollY: 0
+          },
+          jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+        }).from(wrapper).outputPdf('blob');
+      } finally {
+        wrapper.remove();
+      }
     }
   }
 
@@ -2859,6 +2929,7 @@
       action: mode,
       invoiceStatus: payload.invoiceStatus || 'Sent',
       pdfFileName: getInvoicePdfFileName(payload),
+      invoicePdfUrl: payload.invoicePdfUrl || buildInvoicePdfUrl(payload),
       invoicePdfBase64: pdfBase64,
       invoiceHtml: payload.emailHtml || buildInvoiceEmail(payload),
       invoiceDocumentHtml: buildInvoiceDocument(payload),
@@ -3135,7 +3206,7 @@
       : t.toISOString().slice(0,10);
     document.getElementById('uwNotes').value = existingLead.analystNotes || '';
     const statusEl = document.getElementById('uwStatus');
-    statusEl.textContent = 'Work updates will be appended to Google Sheet via n8n.';
+    statusEl.textContent = 'Work updates will overwrite the same Google Sheet row via n8n.';
     statusEl.style.color = '';
     document.getElementById('updateWorkModal').classList.remove('hidden');
   }

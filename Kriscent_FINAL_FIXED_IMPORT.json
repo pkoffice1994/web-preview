@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "\nlet body = $json.body || $json;\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch(e) { body = { rawBody: body }; } }\nfunction t(v,f=''){ return (v===undefined || v===null || String(v).trim()==='') ? f : String(v).trim(); }\nfunction n(v,f=0){ const x=Number(String(v??f).replace(/[^0-9.-]/g,'')); return Number.isFinite(x)?x:f; }\nfunction ph(v){ let p=String(v||'').replace(/[^0-9]/g,''); if(p && !p.startsWith('91')) p='91'+p; return p; }\nconst action=t(body.action,'ping');\nconst budget=n(body.budget ?? body.amount ?? body.projectBudget ?? body.totalAmount ?? body.cost ?? body.price,0);\nconst paidAmount=n(body.paidAmount ?? body.advance ?? body.amountPaid,0);\nconst balanceDue=Math.max(0,budget-paidAmount);\nconst companyName=t(body.companyName || body.comapny_name || body.company_name || body.clientName,'Client');\nconst ownerName=t(body.ownerName || body.owner || body.assignedTo,'');\nconst clientEmail=t(body.clientEmail || body.email,'');\nconst clientPhone=ph(body.clientPhone || body.phone || body.whatsapp);\nconst serviceType=t(body.serviceType || body.service || body.projectType,'General Project');\nconst invoiceId=t(body.invoiceId || body.invoiceNo, 'INV-'+Date.now());\nconst internalEmail=t(body.internalEmail || body.companyEmail,'pkoffice1994@gmail.com');\nconst progress=n(body.workCompletedPercent || body.progress, action==='project_completed'?100:0);\nconst completed = action==='project_completed' || progress>=100 || String(body.workStatus||'').toLowerCase().includes('complete');\nconst leadStatus=t(body.leadStatus || body.status, completed?'Completed':'New');\nconst workStatus=t(body.workStatus, completed?'Completed':'New Lead');\nconst leadNote=t(body.leadNote || body.analystNotes || body.notes,'');\nconst sheetValues = {\n  comapny_name: companyName,\n  ownerName,\n  clientEmail,\n  clientPhone,\n  serviceType,\n  leadSource: t(body.leadSource || body.source,'Dashboard'),\n  budget,\n  leadStatus,\n  leadNote,\n  submittedAt: t(body.submittedAt,new Date().toISOString()),\n  assignedTo: t(body.assignedTo || body.assignee,'Kriscent Team'),\n  workStatus,\n  workCompletedPercent: completed ? 100 : progress,\n  lastFollowUpDate: t(body.lastFollowUpDate,new Date().toISOString().slice(0,10)),\n  nextFollowUpDate: t(body.nextFollowUpDate || body.followUpDate,''),\n  analystNotes: leadNote,\n  invoiceId,\n  invoiceStatus: t(body.invoiceStatus, action==='send_invoice_pdf'?'Sent':'Draft'),\n  paidAmount,\n  invoiceDueDate: t(body.invoiceDueDate || body.dueDate,''),\n  whatsappStatus: t(body.whatsappStatus,'Pending'),\n  whatsappSentAt: t(body.whatsappSentAt,''),\n  whatsappMessageId: t(body.whatsappMessageId,''),\n  emailStatus: t(body.emailStatus,'Pending'),\n  lastActivity: t(body.lastActivity, 'n8n action: '+action)\n};\nconst internalHtml = body.mailHtml || body.emailHtml || `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Kriscent Dashboard Update</h2><p><b>Action:</b> ${action}</p><p><b>Company:</b> ${companyName}</p><p><b>Service:</b> ${serviceType}</p><p><b>Budget:</b> \u20b9${budget}</p><p><b>Progress:</b> ${sheetValues.workCompletedPercent}%</p><p><b>Notes:</b> ${leadNote}</p></div></div>`;\nconst clientInvoiceHtml = body.emailHtml || body.invoiceHtml || `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Invoice Ready</h2><p>Dear ${ownerName || 'Client'},</p><p>Your invoice is ready from <b>Kriscent Techno Hub</b>.</p><table style=\"width:100%;border-collapse:collapse\"><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Invoice ID</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">${invoiceId}</td></tr><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Total</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">\u20b9${budget}</td></tr><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Balance</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">\u20b9${balanceDue}</td></tr></table><p>Regards,<br>Kriscent Techno Hub</p></div></div>`;\nconst completedHtml = `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Project Completed</h2><p>Dear ${ownerName || 'Client'},</p><p>Your project <b>${serviceType}</b> has been completed successfully.</p><p>Regards,<br>Kriscent Techno Hub</p></div></div>`;\nconst whatsappMessage = body.whatsappMessage || `Invoice Ready\\nInvoice ID: ${invoiceId}\\nCompany: ${companyName}\\nService: ${serviceType}\\nTotal: \u20b9${budget}\\nPaid: \u20b9${paidAmount}\\nBalance: \u20b9${balanceDue}\\n\\nKriscent Techno Hub`;\nreturn [{ json: { ...body, ...sheetValues, action, companyName, ownerName, internalEmail, companyEmail: internalEmail, balanceDue, internalHtml, clientInvoiceHtml, completedHtml, whatsappMessage, twilioFrom: t(body.twilioFrom,'whatsapp:+14155238886'), twilioTo: clientPhone ? 'whatsapp:+'+clientPhone : '' } }];\n"
+        "jsCode": "\nlet body = $json.body || $json;\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch(e) { body = { rawBody: body }; } }\nfunction t(v,f=''){ return (v===undefined || v===null || String(v).trim()==='') ? f : String(v).trim(); }\nfunction n(v,f=0){ const x=Number(String(v??f).replace(/[^0-9.-]/g,'')); return Number.isFinite(x)?x:f; }\nfunction ph(v){ let p=String(v||'').replace(/[^0-9]/g,''); if(p && !p.startsWith('91')) p='91'+p; return p; }\nconst action=t(body.action,'ping');\nconst budget=n(body.budget ?? body.amount ?? body.projectBudget ?? body.totalAmount ?? body.cost ?? body.price,0);\nconst paidAmount=n(body.paidAmount ?? body.advance ?? body.amountPaid,0);\nconst balanceDue=Math.max(0,budget-paidAmount);\nconst companyName=t(body.companyName || body.comapny_name || body.company_name || body.clientName,'Client');\nconst ownerName=t(body.ownerName || body.owner || body.assignedTo,'');\nconst clientEmail=t(body.clientEmail || body.email,'');\nconst clientPhone=ph(body.clientPhone || body.phone || body.whatsapp);\nconst serviceType=t(body.serviceType || body.service || body.projectType,'General Project');\nconst invoiceId=t(body.invoiceId || body.invoiceNo, 'INV-'+Date.now());\nconst internalEmail=t(body.internalEmail || body.companyEmail,'pkoffice1994@gmail.com');\nconst progress=n(body.workCompletedPercent || body.progress, action==='project_completed'?100:0);\nconst completed = action==='project_completed' || progress>=100 || String(body.workStatus||'').toLowerCase().includes('complete');\nconst leadStatus=t(body.leadStatus || body.status, completed?'Completed':'New');\nconst workStatus=t(body.workStatus, completed?'Completed':'New Lead');\nconst leadNote=t(body.leadNote || body.analystNotes || body.notes,'');\nconst invoicePdfUrl=t(body.invoicePdfUrl || body.pdfUrl,'');\nconst sheetValues = {\n  comapny_name: companyName,\n  ownerName,\n  clientEmail,\n  clientPhone,\n  serviceType,\n  leadSource: t(body.leadSource || body.source,'Dashboard'),\n  budget,\n  leadStatus,\n  leadNote,\n  submittedAt: t(body.submittedAt,new Date().toISOString()),\n  assignedTo: t(body.assignedTo || body.assignee,'Kriscent Team'),\n  workStatus,\n  workCompletedPercent: completed ? 100 : progress,\n  lastFollowUpDate: t(body.lastFollowUpDate,new Date().toISOString().slice(0,10)),\n  nextFollowUpDate: t(body.nextFollowUpDate || body.followUpDate,''),\n  analystNotes: leadNote,\n  invoiceId,\n  invoiceStatus: t(body.invoiceStatus, action==='send_invoice_pdf'?'Sent':'Draft'),\n  paidAmount,\n  invoiceDueDate: t(body.invoiceDueDate || body.dueDate,''),\n  whatsappStatus: t(body.whatsappStatus,'Pending'),\n  whatsappSentAt: t(body.whatsappSentAt,''),\n  whatsappMessageId: t(body.whatsappMessageId,''),\n  emailStatus: t(body.emailStatus,'Pending'),\n  lastActivity: t(body.lastActivity, 'n8n action: '+action)\n};\nconst internalHtml = body.mailHtml || body.emailHtml || `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Kriscent Dashboard Update</h2><p><b>Action:</b> ${action}</p><p><b>Company:</b> ${companyName}</p><p><b>Service:</b> ${serviceType}</p><p><b>Budget:</b> \u20b9${budget}</p><p><b>Progress:</b> ${sheetValues.workCompletedPercent}%</p><p><b>Notes:</b> ${leadNote}</p></div></div>`;\nconst clientInvoiceHtml = body.emailHtml || body.invoiceHtml || `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Invoice Ready</h2><p>Dear ${ownerName || 'Client'},</p><p>Your invoice is ready from <b>Kriscent Techno Hub</b>.</p><table style=\"width:100%;border-collapse:collapse\"><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Invoice ID</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">${invoiceId}</td></tr><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Total</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">\u20b9${budget}</td></tr><tr><td style=\"border:1px solid #e5e7eb;padding:8px\"><b>Balance</b></td><td style=\"border:1px solid #e5e7eb;padding:8px\">\u20b9${balanceDue}</td></tr></table><p>Regards,<br>Kriscent Techno Hub</p></div></div>`;\nconst completedHtml = `<div style=\"font-family:Arial,sans-serif;background:#f6f7fb;padding:24px\"><div style=\"max-width:680px;margin:auto;background:#fff;border-radius:14px;padding:24px;border:1px solid #e5e7eb\"><h2>Project Completed</h2><p>Dear ${ownerName || 'Client'},</p><p>Your project <b>${serviceType}</b> has been completed successfully.</p><p>Regards,<br>Kriscent Techno Hub</p></div></div>`;\nconst whatsappMessage = body.whatsappMessage || `Invoice Ready\\nInvoice ID: ${invoiceId}\\nCompany: ${companyName}\\nService: ${serviceType}\\nTotal: \u20b9${budget}\\nPaid: \u20b9${paidAmount}\\nBalance: \u20b9${balanceDue}\\n\\nKriscent Techno Hub`;\nreturn [{ json: { ...body, ...sheetValues, action, companyName, ownerName, internalEmail, companyEmail: internalEmail, balanceDue, internalHtml, clientInvoiceHtml, completedHtml, whatsappMessage, invoicePdfUrl, twilioFrom: t(body.twilioFrom,'whatsapp:+14155238886'), twilioTo: clientPhone ? 'whatsapp:+'+clientPhone : '' } }];\n"
       },
       "id": "df6f5c60-95db-499b-a8e8-9fae00aff2e4",
       "name": "Normalize Payload",
@@ -218,6 +218,9 @@
         },
         "columns": {
           "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "submittedAt"
+          ],
           "value": {
             "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
             "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
@@ -498,7 +501,7 @@
     },
     {
       "parameters": {
-        "operation": "append",
+        "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "value": "1m9BVd53DsJWyupmNNx1-z9xKlHFDzZYVVBXX669RGRI",
@@ -511,6 +514,9 @@
         },
         "columns": {
           "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "submittedAt"
+          ],
           "value": {
             "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
             "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
@@ -608,6 +614,9 @@
         },
         "columns": {
           "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "submittedAt"
+          ],
           "value": {
             "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
             "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
@@ -729,6 +738,9 @@
         },
         "columns": {
           "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "submittedAt"
+          ],
           "value": {
             "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
             "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
@@ -778,15 +790,39 @@
     },
     {
       "parameters": {
-        "from": "={{$node['Normalize Payload'].json.twilioFrom}}",
-        "to": "={{$node['Normalize Payload'].json.twilioTo}}",
-        "message": "={{$node['Normalize Payload'].json.whatsappMessage}}",
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{$credentials.accountSid}}/Messages.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twilioApi",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "={{$node['Normalize Payload'].json.twilioFrom}}"
+            },
+            {
+              "name": "To",
+              "value": "={{$node['Normalize Payload'].json.twilioTo}}"
+            },
+            {
+              "name": "Body",
+              "value": "={{$node['Normalize Payload'].json.whatsappMessage}}"
+            },
+            {
+              "name": "MediaUrl",
+              "value": "={{$node['Normalize Payload'].json.invoicePdfUrl}}"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "28755dd8-340c-4299-a53c-631a1092be01",
       "name": "TWILIO WhatsApp Invoice",
-      "type": "n8n-nodes-base.twilio",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         60,
         400
@@ -873,6 +909,9 @@
         },
         "columns": {
           "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "submittedAt"
+          ],
           "value": {
             "comapny_name": "={{$node['Normalize Payload'].json.comapny_name}}",
             "ownerName": "={{$node['Normalize Payload'].json.ownerName}}",
