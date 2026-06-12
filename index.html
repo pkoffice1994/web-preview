@@ -717,7 +717,7 @@
     <header class="topbar">
       <div class="topbar-left">
         <h1>Kriscent Techno Hub — Operations</h1>
-        <span id="dateInfoBtn" style="cursor:pointer">Loading date &nbsp;·&nbsp; n8n Active</span>
+        <span id="dateInfoBtn" style="cursor:pointer">Loading date &nbsp;·&nbsp; n8n Ready</span>
       </div>
       <div class="topbar-right">
         <div style="display:flex;align-items:center;gap:6px;padding:0 10px;height:34px;border-radius:8px;border:1px solid var(--border-2);background:var(--surface-2);">
@@ -811,7 +811,7 @@
               <span class="sync-dot live"></span>
               <div style="flex:1;min-width:0">
                 <strong>n8n Lead Webhook</strong>
-                <span id="webhookStatusText2">Connected · webhook/collect-requirement</span>
+                <span id="webhookStatusText2">Configured · webhook/collect-requirement</span>
               </div>
               <button class="qbtn" type="button" data-action="test-sync">Test</button>
             </div>
@@ -1509,8 +1509,9 @@
       <div class="settings-label">n8n Webhook</div>
       <div class="field" style="margin-top:8px">
         <label>Webhook URL</label>
-        <input id="settingsWebhookUrl" placeholder="https://your-n8n-domain.com/webhook/collect-requirement" />
+        <input id="settingsWebhookUrl" placeholder="/api/n8n or https://your-n8n-domain.com/webhook/collect-requirement" />
       </div>
+      <div class="meta" style="margin-top:8px">On Vercel, use <code>/api/n8n</code> and set <code>N8N_WEBHOOK_URL</code> in project environment variables.</div>
       <button class="tbtn" style="margin-top:10px;width:100%;justify-content:center" id="saveWebhookBtn">Save Webhook</button>
     </div>
     <div class="settings-section">
@@ -1613,7 +1614,7 @@
         <div class="field full"><label for="leadNote">Lead Note</label><textarea id="leadNote" name="leadNote" placeholder="What does this client need?"></textarea></div>
         <details class="advanced-connection">
           <summary>n8n Connection</summary>
-          <div class="field"><label for="n8nWebhookUrl">Webhook URL</label><input id="n8nWebhookUrl" name="n8nWebhookUrl" placeholder="https://your-n8n-domain.com/webhook/collect-requirement" /></div>
+          <div class="field"><label for="n8nWebhookUrl">Webhook URL</label><input id="n8nWebhookUrl" name="n8nWebhookUrl" placeholder="/api/n8n or https://your-n8n-domain.com/webhook/collect-requirement" /></div>
         </details>
       </div>
       <div class="inline-note" id="leadFormStatus">Send real lead data to your n8n webhook, or save locally.</div>
@@ -1632,6 +1633,7 @@
   const STORAGE_KEY_WEBHOOK = 'kriscent-n8n-webhook-url';
   const STORAGE_KEY_SHEET = 'kriscent-sheet-id';
   const STORAGE_KEY_SHEET_TAB = 'kriscent-sheet-tab-name';
+  const HOSTED_WEBHOOK_PROXY = '/api/n8n';
   const LOCAL_WEBHOOK_URL = 'http://127.0.0.1:5678/webhook/collect-requirement';
   const CLOUD_WEBHOOK_URL = 'https://pawankumar1234.app.n8n.cloud/webhook/collect-requirement';
 
@@ -1692,10 +1694,21 @@
 
   function getSavedWebhookUrl() { try { return window.localStorage.getItem(STORAGE_KEY_WEBHOOK) || ''; } catch { return ''; } }
   function saveWebhookUrl(url) { try { url ? window.localStorage.setItem(STORAGE_KEY_WEBHOOK, url) : window.localStorage.removeItem(STORAGE_KEY_WEBHOOK); } catch {} }
-  function isLocalDashboard() { return ['127.0.0.1', 'localhost', ''].includes(window.location.hostname); }
+  function isLocalDashboard() {
+    return ['127.0.0.1', 'localhost'].includes(window.location.hostname)
+      || (window.location.protocol === 'http:' && window.location.hostname === '');
+  }
+  function isHostedDashboard() {
+    return ['http:', 'https:'].includes(window.location.protocol) && !isLocalDashboard();
+  }
   function isLocalWebhookUrl(url) { return /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(String(url || '').trim()); }
+  function isRelativeWebhookUrl(url) { return /^\/(?!\/)/.test(String(url || '').trim()); }
   function isCloudWebhookUrl(url) { return String(url || '').includes('app.n8n.cloud'); }
-  function getDefaultWebhookUrl() { return isLocalDashboard() ? LOCAL_WEBHOOK_URL : CLOUD_WEBHOOK_URL; }
+  function getDefaultWebhookUrl() {
+    if (isLocalDashboard()) return LOCAL_WEBHOOK_URL;
+    if (isHostedDashboard()) return HOSTED_WEBHOOK_PROXY;
+    return CLOUD_WEBHOOK_URL;
+  }
   function getActiveWebhookUrl() {
     const saved = getSavedWebhookUrl();
     if (saved && !(isLocalWebhookUrl(saved) && !isLocalDashboard())) return saved;
@@ -1727,6 +1740,11 @@
     leadModal.classList.remove('hidden');
     document.getElementById('companyName').focus();
   }
+
+  document.getElementById('clientPhone')?.addEventListener('blur', e => {
+    const formatted = formatPhoneWithCountryCode(e.target.value);
+    if (formatted) e.target.value = formatted;
+  });
 
   function closeLeadModal() {
     leadModal.classList.add('hidden'); leadForm.reset();
@@ -1987,7 +2005,17 @@
     const digits = String(phone || '').replace(/\D/g, '');
     if (!digits) return '';
     if (digits.length === 10) return `91${digits}`;
+    if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`;
     return digits;
+  }
+
+  function formatPhoneWithCountryCode(phone, defaultCountryCode = '91') {
+    const digits = normalizePhoneForWhatsapp(phone);
+    if (!digits) return '';
+    if (digits.startsWith(defaultCountryCode) && digits.length === defaultCountryCode.length + 10) {
+      return `+${defaultCountryCode} ${digits.slice(defaultCountryCode.length)}`;
+    }
+    return `+${digits}`;
   }
 
   function buildInvoiceWhatsappText(payload) {
@@ -2061,7 +2089,7 @@
       budget,
       leadStatus,
       clientEmail: fieldValue(data, ['clientEmail', 'Client Email', 'email', 'Email']),
-      clientPhone: fieldValue(data, ['clientPhone', 'Phone', 'phone', 'Mobile']),
+      clientPhone: formatPhoneWithCountryCode(fieldValue(data, ['clientPhone', 'Phone', 'phone', 'Mobile'])),
       assignedTo,
       nextFollowUpDate,
       workStatus,
@@ -2299,14 +2327,14 @@
     const invoiceDueDate = String(overrides.invoiceDueDate || baseLead.invoiceDueDate || baseLead.nextFollowUpDate || toDateInputValue(new Date()));
     const payload = {
       requestId: createRequestId('invoice'),
-      action: 'update_invoice',
+      action: 'send_invoice_pdf',
       rowNumber: Number.isFinite(rowNumber) ? rowNumber : '',
       row_number: Number.isFinite(rowNumber) ? rowNumber : '',
       companyName: baseLead.companyName || _invoiceCompany,
       ownerName: baseLead.ownerName || baseLead.assignedTo || '',
       companyEmail: baseLead.companyEmail || baseLead.companyMail || baseLead.internalEmail || KRISCENT_INTERNAL_EMAIL,
       clientEmail: baseLead.clientEmail || '',
-      clientPhone: baseLead.clientPhone || '',
+      clientPhone: formatPhoneWithCountryCode(baseLead.clientPhone || ''),
       serviceType: baseLead.serviceType || '',
       leadSource: baseLead.leadSource || 'Dashboard',
       budget: totalAmount,
@@ -2325,13 +2353,21 @@
       invoiceDueDate,
       sendClientEmail: true,
       sendInternalFollowup: false,
-      notificationRule: 'CLIENT_ONLY_FOR_INVOICE'
+      notificationRule: 'CLIENT_ONLY_FOR_INVOICE',
+      emailStatus: 'Prepared',
+      whatsappStatus: 'Pending',
+      lastActivity: 'Dashboard invoice prepared'
     };
     payload.whatsappMessage = buildInvoiceWhatsappText(payload);
     payload.whatsappUrl = buildWhatsappUrl(payload);
     payload.emailType = 'HTML';
     payload.emailSubject = `Invoice Ready | ${payload.companyName || 'Client'} | ${payload.invoiceId}`;
     payload.emailHtml = buildInvoiceEmail(payload);
+    payload.invoiceHtml = payload.emailHtml;
+    payload.invoiceDocumentHtml = buildInvoiceDocument(payload);
+    payload.invoiceFileName = `${String(payload.invoiceId || 'invoice').replace(/[^\w.-]+/g, '-')}.html`;
+    payload.invoicePdfFileName = `${String(payload.invoiceId || 'invoice').replace(/[^\w.-]+/g, '-')}.pdf`;
+    payload.driveFolderName = `${payload.companyName || 'Client'} Invoices`;
     payload.mailSubject = payload.emailSubject;
     payload.mailHtml = payload.emailHtml;
     return payload;
@@ -2444,21 +2480,37 @@
     statCards[0].querySelector('.stat-sub').textContent = `${Math.max(1,Math.floor(n/4))} need immediate response`;
   }
 
-  
   async function sendLeadToWebhook(payload, url) {
     const finalUrl = url || getActiveWebhookUrl();
     if (!finalUrl || finalUrl.includes('/workflow/')) throw new Error('Use webhook URL, not workflow URL');
-    const res = await fetch(finalUrl, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=UTF-8'},
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error(`Webhook failed ${res.status}`);
-    try { return await res.json(); } catch { return { ok:true }; }
+    const res = await fetch(finalUrl, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const raw = await res.text();
+    let data = null;
+    if (raw) {
+      try { data = JSON.parse(raw); }
+      catch { data = { raw }; }
+    }
+    if (!res.ok) {
+      const detail = data?.error || data?.message || data?.data?.error || data?.data?.message || data?.raw || '';
+      throw new Error(detail ? `Webhook failed ${res.status}: ${detail}` : `Webhook failed ${res.status}`);
+    }
+    return data;
   }
 
   async function sendDashboardWebhook(payload, url) {
-    return sendLeadToWebhook(payload, url || getActiveWebhookUrl());
+    const finalUrl = url || getActiveWebhookUrl();
+    if (isRelativeWebhookUrl(finalUrl)) {
+      const result = await sendLeadToWebhook(payload, finalUrl);
+      return { ok: true, mode: 'proxy', data: result };
+    }
+    try {
+      const result = await sendLeadToWebhook(payload, finalUrl);
+      return { ok: true, mode: 'json', data: result };
+    } catch (error) {
+      if (!isCloudWebhookUrl(finalUrl)) throw error;
+      await sendLeadViaBrowserForm(payload, finalUrl);
+      return { ok: true, mode: 'cloud-form-fallback' };
+    }
   }
 
   function createRequestId(prefix) {
@@ -2831,7 +2883,7 @@
     const companyName = fd.get('companyName').trim();
     const ownerName = fd.get('ownerName').trim();
     const clientEmail = String(fd.get('clientEmail')||'').trim();
-    const clientPhone = String(fd.get('clientPhone')||'').trim();
+    const clientPhone = formatPhoneWithCountryCode(String(fd.get('clientPhone')||'').trim());
     const serviceType = fd.get('serviceType');
     const leadSource = fd.get('leadSource');
     const budget = Number(fd.get('budget')||0).toLocaleString('en-US');
@@ -2861,14 +2913,14 @@
       setLeadFormStatus('Sending to n8n...', 'warning');
       try {
         const result = await sendDashboardWebhook(payload, webhookUrl);
-        updateWebhookStatus(`Connected · ${webhookUrl}`, 'success');
+        updateWebhookStatus(`Configured · ${webhookUrl}`, 'success');
         appendLeadToTable(tableLead); addLeadToDirectories({ ...payload, budget, rowNumber: '' }); appendFeedItem('Lead sent to n8n', `${companyName} → ${serviceType} · Assigned: ${assignedTo}`);
         incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent to n8n`); isLeadSubmitting = false; return;
       } catch(error) {
         setLeadFormStatus('Trying browser fallback...', 'warning');
         try {
           await sendLeadViaBrowserForm(payload, webhookUrl);
-          updateWebhookStatus(`Connected via fallback`, 'success');
+          updateWebhookStatus(`Configured · fallback mode`, 'warning');
           appendLeadToTable(tableLead); addLeadToDirectories({ ...payload, budget, rowNumber: '' }); appendFeedItem('Lead sent', `${companyName} via browser fallback · Assigned: ${assignedTo}`);
           incrementLeadCount(); closeLeadModal(); showToast(`${companyName} sent`); isLeadSubmitting = false; return;
         } catch(fe) { updateWebhookStatus(`Error: ${fe.message || error.message}`, 'error'); setLeadFormStatus(`Failed: ${fe.message || error.message}`, 'error'); showToast('Webhook failed'); isLeadSubmitting = false; return; }
@@ -2886,7 +2938,7 @@
         if (!url) { updateWebhookStatus('Add webhook URL in Settings', 'warning'); showToast('Webhook URL missing'); return; }
         try {
           await sendDashboardWebhook({ action:'ping', ping:true, source:'dashboard-test', submittedAt: new Date().toISOString() }, url);
-          updateWebhookStatus(`Test OK · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`, 'success');
+          updateWebhookStatus(`Reachable · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`, 'success');
           appendFeedItem('Webhook tested', 'Dashboard reached n8n successfully');
         } catch(e) { updateWebhookStatus(`Test failed: ${e.message}`, 'error'); showToast('Webhook test failed'); return; }
       }
@@ -2918,7 +2970,7 @@
 
   function updateDateInfo() {
     const el = document.getElementById('dateInfoBtn');
-    if (el) el.innerHTML = `${formatDashboardDate(new Date(), true)} &nbsp;·&nbsp; n8n Active`;
+    if (el) el.innerHTML = `${formatDashboardDate(new Date(), true)} &nbsp;·&nbsp; n8n Ready`;
   }
 
   updateDateInfo();
@@ -2927,7 +2979,7 @@
 
   // INIT
   const savedUrl = getActiveWebhookUrl();
-  updateWebhookStatus(`Connected · ${savedUrl}`, 'success');
+  updateWebhookStatus(`Configured · ${savedUrl}`, 'success');
 
   const savedSheetId = getSavedSheetId();
   if (savedSheetId) {
@@ -2972,8 +3024,9 @@
       ? existingLead.nextFollowUpDate
       : t.toISOString().slice(0,10);
     document.getElementById('uwNotes').value = existingLead.analystNotes || '';
-    document.getElementById('uwStatus').textContent = 'Updates will be sent to Google Sheet via n8n webhook.';
-    document.getElementById('uwStatus').style.color = '';
+    const statusEl = document.getElementById('uwStatus');
+    statusEl.textContent = 'Work updates will be appended to Google Sheet via n8n.';
+    statusEl.style.color = '';
     document.getElementById('updateWorkModal').classList.remove('hidden');
   }
   document.getElementById('cancelUpdateWork').addEventListener('click', () => {
@@ -2984,9 +3037,12 @@
     isWorkSubmitting = true;
     const existingLead = findLeadByRow(_uwRow) || findLeadByCompany(_uwCompany) || {};
     const rowNumber = Number(_uwRow);
+    const progressValue = Number(document.getElementById('uwProgress').value || 0);
+    const selectedWorkStatus = document.getElementById('uwWorkStatus').value;
+    const isCompletedUpdate = progressValue >= 100 || /complete/i.test(selectedWorkStatus);
     const payload = {
       requestId: createRequestId('work'),
-      action: 'update_work',
+      action: isCompletedUpdate ? 'project_completed' : 'update_work',
       companyName: _uwCompany,
       rowNumber: Number.isFinite(rowNumber) ? rowNumber : '',
       row_number: Number.isFinite(rowNumber) ? rowNumber : '',
@@ -2998,14 +3054,16 @@
       leadSource: existingLead.leadSource || '',
       budget: existingLead.budget || 0,
       leadNote: existingLead.leadNote || '',
-      workStatus: document.getElementById('uwWorkStatus').value,
+      workStatus: isCompletedUpdate ? 'Completed' : selectedWorkStatus,
       leadStatus: document.getElementById('uwLeadStatus').value,
-      workCompletedPercent: document.getElementById('uwProgress').value,
+      workCompletedPercent: isCompletedUpdate ? 100 : progressValue,
       nextFollowUpDate: document.getElementById('uwNextFollowUp').value,
       assignedTo: document.getElementById('uwAssignedTo').value,
       analystNotes: document.getElementById('uwNotes').value,
       lastFollowUpDate: new Date().toISOString().slice(0,10),
-      submittedAt: existingLead.submittedAt || new Date().toISOString()
+      submittedAt: existingLead.submittedAt || new Date().toISOString(),
+      emailStatus: isCompletedUpdate ? 'Completed' : 'Pending',
+      lastActivity: isCompletedUpdate ? 'Dashboard marked project completed' : 'Dashboard work update'
     };
     const isCompletedProject = String(payload.workStatus || '').toLowerCase().includes('complete') || Number(payload.workCompletedPercent) >= 100;
     payload.action = isCompletedProject ? 'project_completed' : 'update_work';
@@ -3020,31 +3078,36 @@
     payload.mailSubject = payload.emailSubject;
     payload.mailHtml = payload.emailHtml;
     const url = getSavedWebhookUrl();
-    document.getElementById('uwStatus').textContent = 'Saving...';
-    document.getElementById('uwStatus').style.color = '';
+    const statusEl = document.getElementById('uwStatus');
+    statusEl.textContent = 'Saving...';
+    statusEl.style.color = '';
     if (url) {
       try {
         await sendDashboardWebhook(payload, url);
-        document.getElementById('uwStatus').textContent = '✓ Updated in Google Sheet!';
-        document.getElementById('uwStatus').style.color = 'var(--green)';
-        appendFeedItem('Work updated — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}% · Status: ${payload.workStatus} · Assigned: ${payload.assignedTo}`);
-        addNotification('Work updated — ' + _uwCompany, `${payload.workCompletedPercent}% · ${payload.workStatus}`);
+        statusEl.textContent = isCompletedUpdate ? '✓ Project completion logged in Google Sheet!' : '✓ Work update logged in Google Sheet!';
+        statusEl.style.color = 'var(--green)';
+        appendFeedItem((isCompletedUpdate ? 'Project completed — ' : 'Work updated — ') + _uwCompany, `Progress: ${payload.workCompletedPercent}% · Status: ${payload.workStatus} · Assigned: ${payload.assignedTo}`);
+        addNotification((isCompletedUpdate ? 'Project completed — ' : 'Work updated — ') + _uwCompany, `${payload.workCompletedPercent}% · ${payload.workStatus}`);
         Object.assign(existingLead, payload);
         refreshLeadDirectories();
-        showToast(_uwCompany + ' updated ✓');
+        showToast(_uwCompany + (isCompletedUpdate ? ' completed ✓' : ' updated ✓'));
         isWorkSubmitting = false;
         setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1200);
       } catch(e) {
-        document.getElementById('uwStatus').textContent = 'Webhook failed — saved locally only';
-        document.getElementById('uwStatus').style.color = 'var(--red)';
+        statusEl.textContent = `Webhook failed — ${e.message || 'saved locally only'}`;
+        statusEl.style.color = 'var(--red)';
+        Object.assign(existingLead, payload);
+        refreshLeadDirectories();
         appendFeedItem('Work updated (local) — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}%`);
         showToast(_uwCompany + ' saved locally');
         isWorkSubmitting = false;
         setTimeout(() => document.getElementById('updateWorkModal').classList.add('hidden'), 1500);
       }
     } else {
-      document.getElementById('uwStatus').textContent = '⚠ No webhook — add URL in Settings';
-      document.getElementById('uwStatus').style.color = 'var(--amber)';
+      statusEl.textContent = '⚠ No webhook — add URL in Settings';
+      statusEl.style.color = 'var(--amber)';
+      Object.assign(existingLead, payload);
+      refreshLeadDirectories();
       appendFeedItem('Work updated (local) — ' + _uwCompany, `Progress: ${payload.workCompletedPercent}%`);
       showToast('Saved locally — no webhook set');
       isWorkSubmitting = false;
@@ -3198,7 +3261,7 @@
     const url = document.getElementById('settingsWebhookUrl').value.trim();
     const finalUrl = url || getDefaultWebhookUrl();
     saveWebhookUrl(finalUrl);
-    updateWebhookStatus(`Connected · ${finalUrl}`, 'success');
+    updateWebhookStatus(`Configured · ${finalUrl}`, 'success');
     showToast('Webhook saved ✓');
   });
 
