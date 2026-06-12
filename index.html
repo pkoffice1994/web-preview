@@ -1712,7 +1712,7 @@
   function getActiveWebhookUrl() {
     const saved = getSavedWebhookUrl();
     if (isHostedDashboard()) {
-      if (saved && isRelativeWebhookUrl(saved)) return saved;
+      if (saved && (isRelativeWebhookUrl(saved) || isCloudWebhookUrl(saved))) return saved;
       const fallback = getDefaultWebhookUrl();
       saveWebhookUrl(fallback);
       return fallback;
@@ -2506,8 +2506,23 @@
   async function sendDashboardWebhook(payload, url) {
     const finalUrl = url || getActiveWebhookUrl();
     if (isRelativeWebhookUrl(finalUrl)) {
-      const result = await sendLeadToWebhook(payload, finalUrl);
-      return { ok: true, mode: 'proxy', data: result };
+      try {
+        const result = await sendLeadToWebhook(payload, finalUrl);
+        return { ok: true, mode: 'proxy', data: result };
+      } catch (error) {
+        if (!isHostedDashboard()) throw error;
+        try {
+          const result = await sendLeadToWebhook(payload, CLOUD_WEBHOOK_URL);
+          saveWebhookUrl(CLOUD_WEBHOOK_URL);
+          updateWebhookStatus(`Configured · ${CLOUD_WEBHOOK_URL}`, 'success');
+          return { ok: true, mode: 'cloud-json-fallback', data: result };
+        } catch (cloudError) {
+          await sendLeadViaBrowserForm(payload, CLOUD_WEBHOOK_URL);
+          saveWebhookUrl(CLOUD_WEBHOOK_URL);
+          updateWebhookStatus(`Configured · ${CLOUD_WEBHOOK_URL}`, 'success');
+          return { ok: true, mode: 'cloud-form-fallback' };
+        }
+      }
     }
     try {
       const result = await sendLeadToWebhook(payload, finalUrl);
