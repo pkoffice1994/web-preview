@@ -1692,8 +1692,26 @@
     showToast._t = setTimeout(() => toast.classList.add('hidden'), 2200);
   }
 
-  function getSavedWebhookUrl() { try { return window.localStorage.getItem(STORAGE_KEY_WEBHOOK) || ''; } catch { return ''; } }
-  function saveWebhookUrl(url) { try { url ? window.localStorage.setItem(STORAGE_KEY_WEBHOOK, url) : window.localStorage.removeItem(STORAGE_KEY_WEBHOOK); } catch {} }
+  function normalizeWebhookUrl(url) {
+    const raw = String(url || '').trim();
+    if (!raw) return '';
+    if (raw.includes('/workflow/')) return '';
+    if (raw.includes('/webhook-test/')) return raw.replace('/webhook-test/', '/webhook/');
+    return raw;
+  }
+  function getSavedWebhookUrl() {
+    try {
+      return normalizeWebhookUrl(window.localStorage.getItem(STORAGE_KEY_WEBHOOK) || '');
+    } catch {
+      return '';
+    }
+  }
+  function saveWebhookUrl(url) {
+    try {
+      const normalized = isHostedDashboard() ? HOSTED_WEBHOOK_PROXY : normalizeWebhookUrl(url);
+      normalized ? window.localStorage.setItem(STORAGE_KEY_WEBHOOK, normalized) : window.localStorage.removeItem(STORAGE_KEY_WEBHOOK);
+    } catch {}
+  }
   function isLocalDashboard() {
     return ['127.0.0.1', 'localhost'].includes(window.location.hostname)
       || (window.location.protocol === 'http:' && window.location.hostname === '');
@@ -1710,13 +1728,12 @@
     return CLOUD_WEBHOOK_URL;
   }
   function getActiveWebhookUrl() {
-    const saved = getSavedWebhookUrl();
     if (isHostedDashboard()) {
-      if (saved && (isRelativeWebhookUrl(saved) || isCloudWebhookUrl(saved))) return saved;
       const fallback = getDefaultWebhookUrl();
       saveWebhookUrl(fallback);
       return fallback;
     }
+    const saved = getSavedWebhookUrl();
     if (saved && !(isLocalWebhookUrl(saved) && !isLocalDashboard())) return saved;
     const fallback = getDefaultWebhookUrl();
     saveWebhookUrl(fallback);
@@ -2134,9 +2151,12 @@
     );
     const paidAmount = fieldValue(data, ['paidAmount', 'Paid Amount', 'paid_amount', 'amountPaid', 'Amount Paid', 'paid', 'Paid', 'advance', 'Advance', 'received', 'Received'], '0');
     const invoiceDueDate = fieldValue(data, ['invoiceDueDate', 'Invoice Due', 'invoice_due', 'paymentDueDate', 'Payment Due'], nextFollowUpDate || 'Not set');
+    const submittedAt = fieldValue(data, ['submittedAt', 'Submitted At', 'createdAt'], '');
+    const leadKey = fieldValue(data, ['leadKey', 'Lead Key', 'lead_key'], submittedAt);
     return {
       rowNumber,
       requestId: fieldValue(data, ['requestId', 'Request ID'], ''),
+      leadKey,
       companyName,
       ownerName: fieldValue(data, ['ownerName', 'Owner'], assignedTo),
       companyEmail: fieldValue(data, ['companyEmail', 'Company Email', 'companyMail', 'Company Mail', 'internalEmail', 'Internal Email'], KRISCENT_INTERNAL_EMAIL),
@@ -2156,7 +2176,7 @@
       paidAmount,
       invoiceDueDate,
       analystNotes: fieldValue(data, ['analystNotes', 'Analyst Notes', 'notes'], ''),
-      submittedAt: fieldValue(data, ['submittedAt', 'Submitted At', 'createdAt'], '')
+      submittedAt
     };
   }
 
@@ -2379,11 +2399,13 @@
     const totalAmount = toMoneyNumber(overrides.budget ?? baseLead.budget ?? 0);
     const paidAmount = toMoneyNumber(overrides.paidAmount ?? baseLead.paidAmount ?? 0);
     const rowNumber = Number(baseLead.rowNumber || overrides.rowNumber || '');
+    const leadKey = String(overrides.leadKey || baseLead.leadKey || baseLead.submittedAt || '');
     const invoiceId = String(overrides.invoiceId || baseLead.invoiceId || (Number.isFinite(rowNumber) && rowNumber ? `INV-${String(rowNumber).padStart(4, '0')}` : `INV-${Date.now()}`));
     const invoiceStatus = String(overrides.invoiceStatus || baseLead.invoiceStatus || (paidAmount >= totalAmount && totalAmount > 0 ? 'Paid' : 'Draft'));
     const invoiceDueDate = String(overrides.invoiceDueDate || baseLead.invoiceDueDate || baseLead.nextFollowUpDate || toDateInputValue(new Date()));
     const payload = {
       requestId: createRequestId('invoice'),
+      leadKey: createLeadKey(leadKey),
       action: 'send_invoice_pdf',
       rowNumber: Number.isFinite(rowNumber) ? rowNumber : '',
       row_number: Number.isFinite(rowNumber) ? rowNumber : '',
@@ -2517,6 +2539,7 @@
     const normalized = normalizeLeadData(lead, lead.rowNumber || '');
     const sameRecord = item => {
       if (normalized.rowNumber) return String(item.rowNumber) === String(normalized.rowNumber);
+      if (normalized.leadKey) return String(item.leadKey || '') === String(normalized.leadKey);
       if (normalized.requestId) return item.requestId === normalized.requestId;
       if (normalized.submittedAt) {
         return String(item.submittedAt || '') === String(normalized.submittedAt)
@@ -2593,6 +2616,11 @@
   function createRequestId(prefix) {
     const random = Math.random().toString(36).slice(2, 10);
     return `${prefix}-${Date.now()}-${random}`;
+  }
+
+  function createLeadKey(seed = '') {
+    const normalizedSeed = String(seed || '').trim();
+    return normalizedSeed || `lead-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   }
 
   function sendLeadViaBrowserForm(payload, webhookUrl) {
@@ -3078,7 +3106,7 @@
     const webhookUrl = String(fd.get('n8nWebhookUrl')||'').trim() || getActiveWebhookUrl();
     const submittedAt = new Date().toISOString();
     const lastFollowUpDate = toDateInputValue(new Date());
-    const payload = { requestId: createRequestId('lead'), action: 'new_lead', companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
+    const payload = { requestId: createRequestId('lead'), leadKey: createLeadKey(submittedAt), action: 'new_lead', companyName, ownerName, clientEmail, clientPhone, serviceType, leadSource, budget: Number(fd.get('budget')||0), leadStatus, leadNote, submittedAt, assignedTo, workStatus, workCompletedPercent, lastFollowUpDate, nextFollowUpDate, analystNotes };
     payload.companyEmail = payload.companyEmail || KRISCENT_INTERNAL_EMAIL;
     payload.sendClientEmail = false;
     payload.sendInternalEmail = true;
@@ -3221,8 +3249,11 @@
     const progressValue = Number(document.getElementById('uwProgress').value || 0);
     const selectedWorkStatus = document.getElementById('uwWorkStatus').value;
     const isCompletedUpdate = progressValue >= 100 || /complete/i.test(selectedWorkStatus);
+    const leadKey = createLeadKey(existingLead.leadKey || existingLead.submittedAt || '');
+    const submittedAt = existingLead.submittedAt || leadKey;
     const payload = {
       requestId: createRequestId('work'),
+      leadKey,
       action: isCompletedUpdate ? 'project_completed' : 'update_work',
       companyName: _uwCompany,
       rowNumber: Number.isFinite(rowNumber) ? rowNumber : '',
@@ -3242,7 +3273,7 @@
       assignedTo: document.getElementById('uwAssignedTo').value,
       analystNotes: document.getElementById('uwNotes').value,
       lastFollowUpDate: new Date().toISOString().slice(0,10),
-      submittedAt: existingLead.submittedAt || new Date().toISOString(),
+      submittedAt,
       emailStatus: isCompletedUpdate ? 'Completed' : 'Pending',
       lastActivity: isCompletedUpdate ? 'Dashboard marked project completed' : 'Dashboard work update'
     };
@@ -3318,8 +3349,10 @@
     if (isProjectSubmitting) return;
     isProjectSubmitting = true;
     const existingLead = findLeadByCompany(_apCompany) || {};
+    const submittedAt = new Date().toISOString();
     const payload = {
       requestId: createRequestId('project'),
+      leadKey: createLeadKey(submittedAt),
       action: 'add_project',
       companyName: _apCompany,
       ownerName: existingLead.ownerName || existingLead.assignedTo || '',
@@ -3337,7 +3370,7 @@
       workCompletedPercent: 0,
       lastFollowUpDate: new Date().toISOString().slice(0,10),
       leadNote: document.getElementById('apNotes').value || 'New project from existing client',
-      submittedAt: new Date().toISOString()
+      submittedAt
     };
     payload.companyEmail = payload.companyEmail || KRISCENT_INTERNAL_EMAIL;
     payload.sendClientEmail = false;
