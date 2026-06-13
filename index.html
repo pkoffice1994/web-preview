@@ -2948,7 +2948,7 @@
   }
 
   async function sendInvoicePdfToN8n(payload, mode = 'send_invoice_pdf') {
-    const url = isHostedDashboard() ? CLOUD_WEBHOOK_URL : getActiveWebhookUrl();
+    const url = getActiveWebhookUrl();
     if (!url) throw new Error('n8n webhook URL is not configured');
     const pdfBlob = await createInvoicePdfBlob(payload);
     const pdfBase64 = await blobToBase64(pdfBlob);
@@ -3289,7 +3289,7 @@
     payload.emailHtml = buildWorkUpdateEmail(payload);
     payload.mailSubject = payload.emailSubject;
     payload.mailHtml = payload.emailHtml;
-    const url = getSavedWebhookUrl();
+    const url = getActiveWebhookUrl();
     const statusEl = document.getElementById('uwStatus');
     statusEl.textContent = 'Saving...';
     statusEl.style.color = '';
@@ -3381,7 +3381,7 @@
     payload.emailHtml = buildProjectAddedEmail(payload);
     payload.mailSubject = payload.emailSubject;
     payload.mailHtml = payload.emailHtml;
-    const url = getSavedWebhookUrl();
+    const url = getActiveWebhookUrl();
     document.getElementById('apStatus').textContent = 'Adding project...';
     if (url) {
       try {
